@@ -44,10 +44,12 @@ Jalankan test dengan `npm test` dan syntax check dengan `npm run check`.
 
 ## Status integrasi
 
-`/jfs-aging-sign` adalah pilot untuk date, request, response, dan logger melalui
-request helper. URL, parameter, mapping, dan response contract endpoint tetap.
+`/jfs-aging-sign` menggunakan date, request, response, dan logger melalui alur
+route/controller/service/scraper. `/jfs-sensitive` memakai logger serta pola
+modular, tetapi request scraper tetap menggunakan Axios untuk mempertahankan
+perilaku lamanya. URL, parameter, mapping, dan response contract tetap.
 Pagination helper belum dipakai endpoint production. Endpoint lainnya masih
-menggunakan implementasi lama dan akan dimigrasikan satu per satu setelah
+menggunakan implementasi legacy dan akan dimigrasikan satu per satu setelah
 compatibility test tersedia.
 
 Risiko tersisa meliputi variasi response JFS, pagination lama tanpa batas, serta

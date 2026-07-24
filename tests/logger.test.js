@@ -44,3 +44,27 @@ test("logger writes an ISO timestamp and sanitized context", () => {
   assert.equal(entry.context.status, "ok");
   assert.match(entry.timestamp, /^\d{4}-\d{2}-\d{2}T/);
 });
+
+test("nested headers and common secret variants are fully redacted", () => {
+  const secrets = {
+    headers: {
+      authorization: "Bearer SECRET_TOKEN",
+      cookie: "session=SECRET_SESSION"
+    },
+    password: "password-secret",
+    apiKey: "api-key-secret",
+    safe: "visible"
+  };
+  const sanitized = logger.sanitize(secrets);
+  const output = JSON.stringify(sanitized);
+
+  assert.equal(sanitized.headers.authorization, "[REDACTED]");
+  assert.equal(sanitized.headers.cookie, "[REDACTED]");
+  assert.equal(sanitized.password, "[REDACTED]");
+  assert.equal(sanitized.apiKey, "[REDACTED]");
+  assert.equal(sanitized.safe, "visible");
+  assert.doesNotMatch(
+    output,
+    /SECRET_TOKEN|SECRET_SESSION|password-secret|api-key-secret/
+  );
+});

@@ -1,45 +1,34 @@
-# JFS scrapers
+# Scraper JFS
 
-Scraper module tidak bergantung pada Express. Route tetap membaca parameter dan
-mengirim kontrak response lama, sedangkan module membuat request, membaca
-response upstream, dan memetakan data.
+URL di bawah hanya menampilkan host/path aman. Header token dan query key laporan
+tidak ditulis dalam dokumentasi.
 
-Endpoint aging sign dan sensitive detail sekarang menggunakan alur lengkap:
+| Scraper | Endpoint lokal | File/status | Upstream dan method | Input/default | Pagination | Utility | Return/response | Risiko dan test |
+|---|---|---|---|---|---|---|---|---|
+| Pickup | `/jfs-pickup` | `server.js` / Legacy | `/networkmanagement/omsWaybill/shippingWaybillList`, POST | `date`; default tanggal UTC source lama | 100, tanpa batas | Axios, FormData | internal langsung; `{total,data}` | Infinite loop; belum contract test lengkap |
+| Dispatch | `/jfs-dispatch` | `server.js` / Legacy | `/networkmanagement/dispatchWaybill/list`, POST | `date`; hari ini WIB | 100, max 20 | Axios | langsung; `{success,total,page,data}` | Raw error; belum contract test lengkap |
+| Aging sign | `/jfs-aging-sign` | `aging-sign.scraper.js` / Modular | JFS dynamic report path, POST | `date`; hari ini WIB | Satu halaman, size 20 | Shared request | `{data}`; `{success,total,data}` | Batas 20; scraper/service/controller/route diuji |
+| COD | `/jfs-cod` | `server.js` / Legacy | `/codAccounting/api/collection-receipt-detail/page`, POST | `date`; hari ini WIB | 100, max 20 | Axios | langsung; `{success,total,page,data}` | Raw error; belum contract test lengkap |
+| IBK | `/jfs-ibk-report` | `server.js` / Legacy | `/financialmanagement/ibkFundRecord/report`, POST | kemarin 00:00 sampai hari ini 23:59 WIB | 100, max 20 | Axios | langsung; `{success,total,page,data}` | Query URL selalu page 1; belum contract test |
+| Sensitive detail | `/jfs-sensitive` | `sensitive.scraper.js` / Modular | `/networkmanagement/dispatchWaybill/sensitiveDetailByWaybillNo`, POST | `waybillNo`; tanpa default | Tidak ada | Axios | `{data}`; `{success,data}` | Data pribadi; scraper/service/controller/route diuji |
+| OMS order sync | `/jfs-order-sync` | `server.js` / Legacy | OMS list POST + detail GET | `start`,`end`; awal bulan–saat ini WIB | List tanpa batas, detail per order | Axios, FormData | langsung; `{success,total,startTime,endTime,syncTime,data}` | Sangat berat; belum contract test |
+| Inventory | `/jfs-inventory` | `server.js` / Legacy | OPS check list + detail, POST | `date`; hari ini WIB | Dua tingkat, size 20, tanpa batas | Axios | langsung; `{success,date,totalCheckCode,total,data}` | Sangat berat; belum contract test |
 
-```text
-Route → Controller → Service → Scraper
+## Template scraper baru
+
+```javascript
+async function scrapeExample({
+  requestFn,
+  date
+}) {
+  // Build upstream request.
+  // Map upstream data.
+  return {
+    data: []
+  };
+}
 ```
 
-## Scraper modular
-
-| Module | Endpoint | Parameter internal | Return internal | Response publik |
-|---|---|---|---|---|
-| `aging-sign.scraper.js` | `GET /jfs-aging-sign` | `date`, `authToken`, `requestFn` | `{ data }` | `{ success, total, data }` |
-| `sensitive.scraper.js` | `GET /jfs-sensitive` | `waybillNo`, `authToken`, `requestFn` | `{ data }` | `{ success, data }` |
-
-Aging sign menggunakan shared request utility sehingga memiliki timeout, retry
-terbatas, parsing JSON, dan log error tersensor. Sensitive detail tetap memakai
-Axios secara default untuk mempertahankan perilaku request lama. Keduanya
-mendukung dependency injection agar test tidak menghubungi JFS.
-
-## Menambahkan scraper
-
-1. Buat module CommonJS di `src/scrapers/` tanpa `req` atau `res`.
-2. Terima parameter dan `requestFn` melalui argument object.
-3. Pertahankan URL, method, payload, header, mapping, dan urutan data lama.
-4. Export scraper melalui `src/scrapers/index.js`.
-5. Buat fixture anonim dan test request configuration, mapping, data kosong,
-   property hilang, serta upstream error.
-6. Integrasikan satu endpoint dan pertahankan response/error publiknya.
-
-## Belum modular
-
-- Pickup: pagination tanpa batas maksimum.
-- Dispatch: pagination maksimum 20 halaman.
-- COD: pagination maksimum 20 halaman.
-- IBK report: pagination berisiko mengulang halaman pertama.
-- OMS order sync: pagination dan request detail per order.
-- Inventory: dua tingkat pagination.
-
-Risiko utama migrasi berikutnya adalah perubahan jumlah/urutan data, perilaku
-pagination, response parsial, dan pesan error yang digunakan Google Apps Script.
+Scraper baru harus menerima dependency request, tidak memakai Express, tidak
+mencatat credential, dan memiliki fixture anonim serta regression test sebelum
+route didaftarkan.

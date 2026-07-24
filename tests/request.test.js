@@ -16,6 +16,19 @@ async function createMockServer(handler) {
   };
 }
 
+async function withoutRequestLogs(callback) {
+  const originalError = console.error;
+  const originalWarn = console.warn;
+  console.error = () => {};
+  console.warn = () => {};
+  try {
+    return await callback();
+  } finally {
+    console.error = originalError;
+    console.warn = originalWarn;
+  }
+}
+
 test("returns parsed JSON from a successful request", async () => {
   const mock = await createMockServer((_req, res) => {
     res.setHeader("content-type", "application/json");
@@ -142,6 +155,167 @@ test("classifies invalid JSON", async () => {
         retries: 0
       }),
       error => error.code === "INVALID_JSON" && error.isUpstream
+    );
+  } finally {
+    await mock.close();
+  }
+});
+
+for (const retryableStatus of [429, 502, 504]) {
+  test(`retries HTTP ${retryableStatus} once and then succeeds`, async () => {
+    let requestCount = 0;
+    const mock = await createMockServer((_req, res) => {
+      requestCount += 1;
+      res.statusCode = requestCount === 1 ? retryableStatus : 200;
+      res.end(JSON.stringify({ attempt: requestCount }));
+    });
+
+    try {
+      const response = await withoutRequestLogs(() =>
+        externalRequest({
+          url: mock.url,
+          retries: 1,
+          retryDelayMs: 1
+        })
+      );
+      assert.equal(response.data.attempt, 2);
+      assert.equal(requestCount, 2);
+    } finally {
+      await mock.close();
+    }
+  });
+}
+
+for (const nonRetryableStatus of [400, 403, 500]) {
+  test(`does not retry HTTP ${nonRetryableStatus}`, async () => {
+    let requestCount = 0;
+    const mock = await createMockServer((_req, res) => {
+      requestCount += 1;
+      res.statusCode = nonRetryableStatus;
+      res.end(JSON.stringify({ code: nonRetryableStatus }));
+    });
+
+    try {
+      await assert.rejects(
+        withoutRequestLogs(() =>
+          externalRequest({
+            url: mock.url,
+            retries: 2,
+            retryDelayMs: 1
+          })
+        ),
+        error =>
+          error.status === nonRetryableStatus &&
+          error.isUpstream === true &&
+          error.isTimeout === false
+      );
+      assert.equal(requestCount, 1);
+    } finally {
+      await mock.close();
+    }
+  });
+}
+
+test("retries a connection reset and respects the retry limit", async () => {
+  let requestCount = 0;
+  const mock = await createMockServer((req, res) => {
+    requestCount += 1;
+    if (requestCount === 1) {
+      req.socket.destroy();
+      return;
+    }
+    res.end(JSON.stringify({ success: true }));
+  });
+
+  try {
+    const response = await withoutRequestLogs(() =>
+      externalRequest({
+        url: mock.url,
+        retries: 1,
+        retryDelayMs: 1
+      })
+    );
+    assert.deepEqual(response.data, { success: true });
+    assert.equal(requestCount, 2);
+  } finally {
+    await mock.close();
+  }
+});
+
+test("never exceeds the configured retry count", async () => {
+  let requestCount = 0;
+  const mock = await createMockServer((_req, res) => {
+    requestCount += 1;
+    res.statusCode = 503;
+    res.end("{}");
+  });
+
+  try {
+    await assert.rejects(
+      withoutRequestLogs(() =>
+        externalRequest({
+          url: mock.url,
+          retries: 2,
+          retryDelayMs: 1
+        })
+      ),
+      error => error.status === 503
+    );
+    assert.equal(requestCount, 3);
+  } finally {
+    await mock.close();
+  }
+});
+
+test("classifies an empty body as invalid JSON", async () => {
+  const mock = await createMockServer((_req, res) => {
+    res.end("");
+  });
+
+  try {
+    await assert.rejects(
+      withoutRequestLogs(() =>
+        externalRequest({
+          url: mock.url,
+          retries: 0
+        })
+      ),
+      error =>
+        error.code === "INVALID_JSON" &&
+        error.status === 200 &&
+        error.isUpstream === true
+    );
+  } finally {
+    await mock.close();
+  }
+});
+
+test("request errors expose safe metadata without request headers", async () => {
+  const mock = await createMockServer((_req, res) => {
+    res.statusCode = 500;
+    res.end("{}");
+  });
+
+  try {
+    await assert.rejects(
+      withoutRequestLogs(() =>
+        externalRequest({
+          url: mock.url,
+          headers: {
+            authorization: "Bearer SECRET_TOKEN"
+          },
+          retries: 0
+        })
+      ),
+      error => {
+        assert.equal(error.code, "UPSTREAM_HTTP_ERROR");
+        assert.equal(error.status, 500);
+        assert.equal(error.isTimeout, false);
+        assert.equal(error.isUpstream, true);
+        assert.equal(error.headers, undefined);
+        assert.doesNotMatch(error.message, /SECRET_TOKEN/);
+        return true;
+      }
     );
   } finally {
     await mock.close();

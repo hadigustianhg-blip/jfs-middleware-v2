@@ -6,6 +6,7 @@ const {
   createAgingSignController,
   createSensitiveController
 } = require("../src/controllers");
+const { getTodayJakarta } = require("../src/utils/date");
 
 function createMockResponse() {
   return {
@@ -58,9 +59,11 @@ test("aging controller reads date and preserves success response", async () => {
 });
 
 test("aging controller preserves empty and error contracts", async () => {
+  let defaultOptions;
   const emptyController = createAgingSignController({
     agingSignService: {
-      async getAgingSign() {
+      async getAgingSign(options) {
+        defaultOptions = options;
         return { data: [] };
       }
     }
@@ -72,6 +75,7 @@ test("aging controller preserves empty and error contracts", async () => {
     total: 0,
     data: []
   });
+  assert.deepEqual(defaultOptions, { date: getTodayJakarta() });
 
   const errorController = createAgingSignController({
     agingSignService: {
@@ -150,4 +154,45 @@ test("sensitive controller preserves its public error contract", async () => {
     success: false,
     error: "mock failure"
   });
+});
+
+test("controller responses never expose raw upstream secrets", async () => {
+  const upstreamError = new Error("Safe upstream failure");
+  upstreamError.response = {
+    data: {
+      authorization: "Bearer SECRET_TOKEN",
+      cookie: "session=SECRET_SESSION"
+    }
+  };
+  const agingController = createAgingSignController({
+    agingSignService: {
+      async getAgingSign() {
+        throw upstreamError;
+      }
+    }
+  });
+  const sensitiveController = createSensitiveController({
+    sensitiveService: {
+      async getSensitiveDetail() {
+        throw upstreamError;
+      }
+    }
+  });
+  const agingResponse = createMockResponse();
+  const sensitiveResponse = createMockResponse();
+
+  await withoutErrorOutput(() =>
+    agingController.getAgingSign({ query: {} }, agingResponse)
+  );
+  await withoutErrorOutput(() =>
+    sensitiveController.getSensitiveDetail({ query: {} }, sensitiveResponse)
+  );
+
+  const output = JSON.stringify([
+    agingResponse.body,
+    sensitiveResponse.body
+  ]);
+  assert.doesNotMatch(output, /SECRET_TOKEN|SECRET_SESSION/);
+  assert.equal(agingResponse.statusCode, 500);
+  assert.equal(sensitiveResponse.statusCode, 500);
 });

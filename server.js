@@ -1199,6 +1199,20 @@ app.get("/jfs-inventory", async (req, res) => {
 // ================= PORT =================
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log("Server running on port " + PORT);
-});
+function startServer({
+  port = PORT,
+  host = "0.0.0.0"
+} = {}) {
+  return app.listen(port, host, () => {
+    console.log("Server running on port " + port);
+  });
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = {
+  app,
+  startServer
+};

@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "check": "node --check server.js"
+    "check": "node --check server.js",
+    "test:contracts": "node --test tests/contracts.test.js",
+    "test:safety": "node --test tests/fixture-safety.test.js"
   },
   "keywords": [],
   "author": "",

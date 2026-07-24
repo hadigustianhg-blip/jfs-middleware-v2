@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("node:fs");
+const path = require("node:path");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
@@ -68,4 +70,25 @@ test("modular router has no prefixes or duplicate endpoints", () => {
     new Set(routes.map(route => `${route.methods[0]} ${route.path}`)).size,
     routes.length
   );
+});
+
+test("legacy and modular registrations together preserve all ten endpoints", () => {
+  const serverSource = fs.readFileSync(
+    path.join(__dirname, "..", "server.js"),
+    "utf8"
+  );
+  const legacyPaths = [...serverSource.matchAll(
+    /app\.get\("([^"]+)"/g
+  )].map(match => match[1]);
+  const modularPaths = routeSummary(createModularRoutes({
+    getAuthToken: () => "TEST_TOKEN"
+  })).map(route => route.path);
+  const paths = [...legacyPaths, ...modularPaths];
+
+  assert.equal(paths.length, 10);
+  assert.equal(new Set(paths).size, 10);
+  assert.ok(paths.includes("/"));
+  assert.ok(paths.includes("/set-token"));
+  assert.equal(paths.filter(pathValue => pathValue === "/jfs-aging-sign").length, 1);
+  assert.equal(paths.filter(pathValue => pathValue === "/jfs-sensitive").length, 1);
 });
