@@ -1,0 +1,19 @@
+{
+  "data": {
+    "records": [
+      {
+        "signTimelyTotal": 10,
+        "networkName": "OUTLET001",
+        "signDelayOtherTotal": 2,
+        "signTimelyRate": "83%",
+        "problemOtherTotal": 1,
+        "queryTime": "2026-07-24 10:00:00",
+        "sendCenterTotal": 12,
+        "signDelayNoSignTotal": 0
+      },
+      {
+        "networkName": "OUTLET002"
+      }
+    ]
+  }
+}

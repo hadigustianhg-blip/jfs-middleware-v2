@@ -1,0 +1,16 @@
+{
+  "data": {
+    "waybillNo": "TEST000001",
+    "dispatchTime": "2026-07-24 09:00:00",
+    "dispatchStaffName": "Courier Test",
+    "receiverName": "Customer Test",
+    "receiverMobilePhone": "081200000000",
+    "receiverTelphone": "",
+    "receiverDetailedAddress": "Alamat Test",
+    "chargeWeight": 1,
+    "abnormalName": "",
+    "updateTime": "2026-07-24 10:00:00",
+    "codMoney": 10000,
+    "goodsName": "Barang Test"
+  }
+}
