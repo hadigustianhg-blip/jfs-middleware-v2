@@ -4,6 +4,12 @@ Scraper module tidak bergantung pada Express. Route tetap membaca parameter dan
 mengirim kontrak response lama, sedangkan module membuat request, membaca
 response upstream, dan memetakan data.
 
+Endpoint aging sign dan sensitive detail sekarang menggunakan alur lengkap:
+
+```text
+Route → Controller → Service → Scraper
+```
+
 ## Scraper modular
 
 | Module | Endpoint | Parameter internal | Return internal | Response publik |

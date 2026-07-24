@@ -3,12 +3,7 @@ const axios = require("axios");
 const cors = require("cors");
 const FormData = require("form-data");
 const moment = require("moment-timezone");
-const { getTodayJakarta } = require("./src/utils/date");
-const { sendSuccess } = require("./src/utils/response");
-const {
-  scrapeAgingSign,
-  scrapeSensitiveDetail
-} = require("./src/scrapers");
+const { createModularRoutes } = require("./src/routes");
 
 const app = express();
 
@@ -17,6 +12,10 @@ app.use(express.json());
 
 // 🔐 TOKEN
 let AUTH_TOKEN = process.env.AUTH_TOKEN || "";
+
+app.use(createModularRoutes({
+  getAuthToken: () => AUTH_TOKEN
+}));
 
 // ================= ROOT =================
 app.get("/", (req, res) => {
@@ -304,55 +303,6 @@ app.get("/jfs-dispatch", async (req, res) => {
 
     res.status(500).json({
       error: "Gagal ambil data dispatch",
-      detail:
-        error.response?.data ||
-        error.message
-    });
-  }
-});
-
-// ================= AGING SIGN =================
-app.get("/jfs-aging-sign", async (req, res) => {
-
-  try {
-
-    if (!AUTH_TOKEN) {
-      return res.status(400).json({
-        error: "Token kosong"
-      });
-    }
-
-    // Shared utility pilot; response contract remains unchanged.
-    const date =
-      req.query.date ||
-      getTodayJakarta();
-
-    const result = await scrapeAgingSign({
-      date,
-      authToken: AUTH_TOKEN
-    });
-
-    sendSuccess(res, {
-
-      success: true,
-
-      total: result.data.length,
-
-      data: result.data
-
-    });
-
-  } catch (error) {
-
-    console.error(
-      "ERROR AGING SIGN:",
-      error.response?.data || error.message
-    );
-
-    res.status(500).json({
-
-      error: "Gagal ambil aging sign",
-
       detail:
         error.response?.data ||
         error.message
@@ -751,66 +701,6 @@ app.get("/jfs-ibk-report", async (req, res) => {
   }
 
 });
-// ================= SECRET INFO =================
-app.get("/jfs-sensitive", async (req, res) => {
-
-  try {
-
-    if (!AUTH_TOKEN) {
-
-      return res.status(400).json({
-        error: "Token kosong"
-      });
-
-    }
-
-    const waybillNo =
-      req.query.waybillNo;
-
-    console.log(
-      "SENSITIVE REQUEST:",
-      waybillNo
-    );
-
-    const result = await scrapeSensitiveDetail({
-      waybillNo,
-      authToken: AUTH_TOKEN
-    });
-
-    console.log(
-      "SENSITIVE SUCCESS"
-    );
-
-    res.json({
-
-      success: true,
-
-      data: result.data
-
-    });
-
-  } catch (err) {
-
-    console.log(
-      "SENSITIVE ERROR:",
-      err.response?.data ||
-      err.message
-    );
-
-    res.status(500).json({
-
-      success: false,
-
-      error:
-        err.response?.data ||
-        err.message
-
-    });
-
-  }
-
-});
-
 function getOmsHeaders(route) {
   return {
     Authtoken: AUTH_TOKEN,
