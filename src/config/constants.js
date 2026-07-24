@@ -1,0 +1,19 @@
+"use strict";
+
+const { getNumberEnv } = require("./env");
+
+const DEFAULT_TIMEZONE = "Asia/Jakarta";
+const DEFAULT_PAGE_SIZE = getNumberEnv("DEFAULT_PAGE_SIZE", 100);
+const DEFAULT_MAX_PAGES = getNumberEnv("DEFAULT_MAX_PAGES", 20);
+const DEFAULT_REQUEST_TIMEOUT_MS = getNumberEnv("REQUEST_TIMEOUT_MS", 30000);
+const DEFAULT_RETRY_COUNT = getNumberEnv("REQUEST_RETRY_COUNT", 1);
+const DEFAULT_RETRY_DELAY_MS = 300;
+
+module.exports = {
+  DEFAULT_TIMEZONE,
+  DEFAULT_PAGE_SIZE,
+  DEFAULT_MAX_PAGES,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  DEFAULT_RETRY_COUNT,
+  DEFAULT_RETRY_DELAY_MS
+};

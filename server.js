@@ -3,6 +3,9 @@ const axios = require("axios");
 const cors = require("cors");
 const FormData = require("form-data");
 const moment = require("moment-timezone");
+const { getTodayJakarta } = require("./src/utils/date");
+const { externalRequest } = require("./src/utils/request");
+const { sendSuccess } = require("./src/utils/response");
 
 const app = express();
 
@@ -62,6 +65,15 @@ function handleError(error, res, label) {
   res.status(500).json({
     error: label,
     detail: error.response?.data || error.message
+  });
+}
+
+function sharedExternalPost(url, body, config = {}) {
+  return externalRequest({
+    method: "POST",
+    url,
+    body,
+    headers: config.headers
   });
 }
 
@@ -316,9 +328,10 @@ app.get("/jfs-aging-sign", async (req, res) => {
       });
     }
 
+    // Shared utility pilot; response contract remains unchanged.
     const date =
       req.query.date ||
-      moment().tz("Asia/Jakarta").format("YYYY-MM-DD");
+      getTodayJakarta();
 
     const payload = {
 
@@ -347,7 +360,7 @@ app.get("/jfs-aging-sign", async (req, res) => {
       sqlCode: "realtime_bus_aging_sign_sum_nd"
     };
 
-    const response = await axios.post(
+    const response = await sharedExternalPost(
 
       "https://jfsgw.jtcargo.co.id/jfs-report-leader/report/dynamicReport/findByPagination?sqlCode=realtime_bus_aging_sign_sum_nd&dcr_key=57b048fb-bc8c-4d24-982b-a750b7ce8693",
 
@@ -400,7 +413,7 @@ app.get("/jfs-aging-sign", async (req, res) => {
 
     }));
 
-    res.json({
+    sendSuccess(res, {
 
       success: true,
 
