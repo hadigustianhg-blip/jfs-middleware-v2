@@ -1,9 +1,6 @@
 "use strict";
 
 const {
-  createAbnormalPieceController
-} = require("./abnormal-piece.controller");
-const {
   createAgingSignController
 } = require("./aging-sign.controller");
 const {
@@ -12,10 +9,13 @@ const {
 const {
   createInventoryDetailController
 } = require("./inventory-detail.controller");
+const {
+  createWaybillStatusController
+} = require("./waybill-status.controller");
 
 module.exports = {
-  createAbnormalPieceController,
   createAgingSignController,
   createInventoryDetailController,
-  createSensitiveController
+  createSensitiveController,
+  createWaybillStatusController
 };

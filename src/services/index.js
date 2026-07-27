@@ -1,9 +1,6 @@
 "use strict";
 
 const {
-  createAbnormalPieceService
-} = require("./abnormal-piece.service");
-const {
   createAgingSignService
 } = require("./aging-sign.service");
 const {
@@ -12,10 +9,13 @@ const {
 const {
   createInventoryDetailService
 } = require("./inventory-detail.service");
+const {
+  createWaybillStatusService
+} = require("./waybill-status.service");
 
 module.exports = {
-  createAbnormalPieceService,
   createAgingSignService,
   createInventoryDetailService,
-  createSensitiveService
+  createSensitiveService,
+  createWaybillStatusService
 };

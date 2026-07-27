@@ -14,8 +14,8 @@ const {
   createInventoryDetailRoutes
 } = require("../src/routes/inventory-detail.routes");
 const {
-  createAbnormalPieceRoutes
-} = require("../src/routes/abnormal-piece.routes");
+  createWaybillStatusRoutes
+} = require("../src/routes/waybill-status.routes");
 const { createModularRoutes } = require("../src/routes");
 
 function routeSummary(router) {
@@ -40,7 +40,7 @@ test("individual routes preserve paths, GET methods, and handlers", () => {
   const agingHandler = () => {};
   const sensitiveHandler = () => {};
   const inventoryDetailHandler = () => {};
-  const abnormalPieceHandler = () => {};
+  const waybillStatusHandler = () => {};
   const agingRouter = createAgingSignRoutes({
     getAgingSign: agingHandler
   });
@@ -50,8 +50,8 @@ test("individual routes preserve paths, GET methods, and handlers", () => {
   const inventoryDetailRouter = createInventoryDetailRoutes({
     getInventoryDetail: inventoryDetailHandler
   });
-  const abnormalPieceRouter = createAbnormalPieceRoutes({
-    getAbnormalPieceBatch: abnormalPieceHandler
+  const waybillStatusRouter = createWaybillStatusRoutes({
+    getWaybillStatusBatch: waybillStatusHandler
   });
 
   assert.deepEqual(routeSummary(agingRouter), [{
@@ -76,13 +76,13 @@ test("individual routes preserve paths, GET methods, and handlers", () => {
     inventoryDetailRouter.stack[0].route.stack[0].handle,
     inventoryDetailHandler
   );
-  assert.deepEqual(routeSummary(abnormalPieceRouter), [{
-    path: "/jfs-abnormal-piece-batch",
+  assert.deepEqual(routeSummary(waybillStatusRouter), [{
+    path: "/jfs-waybill-status-batch",
     methods: ["post"]
   }]);
   assert.strictEqual(
-    abnormalPieceRouter.stack[0].route.stack[0].handle,
-    abnormalPieceHandler
+    waybillStatusRouter.stack[0].route.stack[0].handle,
+    waybillStatusHandler
   );
 });
 
@@ -93,7 +93,7 @@ test("modular router has no prefixes or duplicate endpoints", () => {
   const routes = routeSummary(router);
 
   assert.deepEqual(routes, [
-    { path: "/jfs-abnormal-piece-batch", methods: ["post"] },
+    { path: "/jfs-waybill-status-batch", methods: ["post"] },
     { path: "/jfs-aging-sign", methods: ["get"] },
     { path: "/jfs-sensitive", methods: ["get"] },
     { path: "/jfs-inventory-detail", methods: ["get"] }
@@ -128,7 +128,7 @@ test("legacy and modular registrations together expose all twelve endpoints", ()
     1
   );
   assert.equal(
-    paths.filter(pathValue => pathValue === "/jfs-abnormal-piece-batch").length,
+    paths.filter(pathValue => pathValue === "/jfs-waybill-status-batch").length,
     1
   );
 });

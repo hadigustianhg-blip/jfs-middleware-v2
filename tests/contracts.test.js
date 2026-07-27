@@ -80,7 +80,7 @@ test("modular and sensitive endpoints are classified accurately", () => {
   assert.equal(contracts["GET /jfs-sensitive"].status, "modular");
   assert.equal(contracts["GET /jfs-inventory-detail"].status, "modular");
   assert.equal(
-    contracts["POST /jfs-abnormal-piece-batch"].status,
+    contracts["POST /jfs-waybill-status-batch"].status,
     "modular"
   );
   assert.equal(contracts["GET /jfs-pickup"].status, "legacy");
