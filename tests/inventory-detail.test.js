@@ -44,7 +44,7 @@ test("inventory detail payload follows the JFS report request", () => {
   }), {
     billCode: "TEST000001",
     isOverDate: "",
-    queryFlag: "all",
+    queryFlag: "2",
     beginDate: "2026-07-01 00:00:00",
     endDate: "2026-07-02 23:59:59",
     operateSiteType: "all",

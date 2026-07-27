@@ -21,12 +21,14 @@ function readManifest() {
 test("contract manifest is valid JSON without duplicate endpoint entries", () => {
   const text = readManifestText();
   const manifest = JSON.parse(text);
-  const rawEndpointEntries = text.match(/^\s+"GET \/[^\"]*": \{/gm) || [];
+  const rawEndpointEntries = text.match(
+    /^\s+"(?:GET|POST) \/[^\"]*": \{/gm
+  ) || [];
   const names = Object.keys(manifest.contracts);
 
   assert.equal(rawEndpointEntries.length, names.length);
   assert.equal(new Set(names).size, names.length);
-  assert.equal(names.length, 11);
+  assert.equal(names.length, 12);
 });
 
 test("contract manifest records every source endpoint", () => {
@@ -42,8 +44,8 @@ test("contract manifest records every source endpoint", () => {
     .join("\n");
   const combined = `${serverSource}\n${routeSources}`;
   const discovered = [...combined.matchAll(
-    /(?:app|router)\.get\("([^"]+)"/g
-  )].map(match => `GET ${match[1]}`);
+    /(?:app|router)\.(get|post)\("([^"]+)"/g
+  )].map(match => `${match[1].toUpperCase()} ${match[2]}`);
 
   assert.equal(new Set(discovered).size, discovered.length);
   assert.deepEqual(
@@ -56,7 +58,7 @@ test("contract entries use valid methods, paths, statuses, and response keys", (
   const manifest = readManifest();
 
   for (const [endpoint, contract] of Object.entries(manifest.contracts)) {
-    assert.match(endpoint, /^GET \/[a-z0-9/-]*$/);
+    assert.match(endpoint, /^(?:GET|POST) \/[a-z0-9/-]*$/);
     assert.ok(["legacy", "modular"].includes(contract.status));
     assert.equal(contract.successStatus, 200);
     assert.equal(contract.sourceAnalyzed, true);
@@ -77,6 +79,10 @@ test("modular and sensitive endpoints are classified accurately", () => {
   assert.equal(contracts["GET /jfs-aging-sign"].status, "modular");
   assert.equal(contracts["GET /jfs-sensitive"].status, "modular");
   assert.equal(contracts["GET /jfs-inventory-detail"].status, "modular");
+  assert.equal(
+    contracts["POST /jfs-abnormal-piece-batch"].status,
+    "modular"
+  );
   assert.equal(contracts["GET /jfs-pickup"].status, "legacy");
   assert.equal(contracts["GET /jfs-inventory"].status, "legacy");
   assert.ok(

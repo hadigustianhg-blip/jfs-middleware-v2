@@ -2,11 +2,13 @@
 
 const express = require("express");
 const {
+  createAbnormalPieceController,
   createAgingSignController,
   createInventoryDetailController,
   createSensitiveController
 } = require("../controllers");
 const {
+  createAbnormalPieceService,
   createAgingSignService,
   createInventoryDetailService,
   createSensitiveService
@@ -20,9 +22,13 @@ const {
 const {
   createInventoryDetailRoutes
 } = require("./inventory-detail.routes");
+const {
+  createAbnormalPieceRoutes
+} = require("./abnormal-piece.routes");
 
 function createModularRoutes({ getAuthToken } = {}) {
   const router = express.Router();
+  const abnormalPieceService = createAbnormalPieceService({ getAuthToken });
   const agingSignService = createAgingSignService({ getAuthToken });
   const inventoryDetailService = createInventoryDetailService({ getAuthToken });
   const sensitiveService = createSensitiveService({ getAuthToken });
@@ -35,7 +41,13 @@ function createModularRoutes({ getAuthToken } = {}) {
   const inventoryDetailController = createInventoryDetailController({
     inventoryDetailService
   });
+  const abnormalPieceController = createAbnormalPieceController({
+    abnormalPieceService
+  });
 
+  router.use(createAbnormalPieceRoutes({
+    getAbnormalPieceBatch: abnormalPieceController.getAbnormalPieceBatch
+  }));
   router.use(createAgingSignRoutes({
     getAgingSign: agingSignController.getAgingSign
   }));

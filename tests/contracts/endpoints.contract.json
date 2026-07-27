@@ -145,6 +145,28 @@
       "errorVariants": [["error"], ["error", "detail"]],
       "verifiedByTest": true,
       "sourceAnalyzed": true
+    },
+    "POST /jfs-abnormal-piece-batch": {
+      "status": "modular",
+      "classifications": ["scraper", "batch", "security-sensitive"],
+      "queryParameters": [],
+      "requestBodyParameters": ["waybills"],
+      "successStatus": 200,
+      "successResponseType": "json",
+      "successTopLevelKeys": [
+        "success",
+        "totalRequested",
+        "totalSuccess",
+        "totalNotFound",
+        "totalFailed",
+        "data",
+        "errors"
+      ],
+      "errorStatuses": [400, 500],
+      "errorTopLevelKeys": ["success", "error"],
+      "errorVariants": [["success", "error"]],
+      "verifiedByTest": true,
+      "sourceAnalyzed": true
     }
   }
 }
