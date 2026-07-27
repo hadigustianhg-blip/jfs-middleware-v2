@@ -59,24 +59,52 @@ function buildInventoryDetailHeaders(authToken) {
 
 function mapInventoryDetailRecord(item = {}) {
   return {
-    billCode: item.billCode ?? "",
-    customerName: item.customerName ?? "",
-    goodsName: item.goodsName ?? "",
-    packageNumber: item.packageNumber ?? 0,
-    weight: item.weight ?? 0,
-    inventoryHours: item.inventoryHours ?? 0,
-    codNeed: item.codNeed ?? 0,
-    waybillStatus: item.waybillStatus ?? "",
-    operateSiteType: item.operateSiteType ?? "",
-    operateSiteName: item.operateSiteName ?? "",
-    destinationSiteName: item.destinationSiteName ?? "",
-    sendNextStation: item.sendNextStation ?? "",
-    problemCategory: item.problemCategory ?? "",
-    problemType: item.problemType ?? "",
-    abnormalRemark: item.abnormalRemark ?? "",
-    takeScanTime: item.takeScanTime ?? "",
-    operateScanTime: item.operateScanTime ?? "",
-    abnormalRegisterTime: item.abnormalRegisterTime ?? ""
+    billCode: item.billcode ?? item.billCode ?? "",
+    customerName: item.name ?? item.customerName ?? "",
+    customerCode: item.customer_code ?? item.customerCode ?? "",
+    goodsName: item.goods_name ?? item.goodsName ?? "",
+    packageNumber: Number(item.package_number || item.packageNumber || 0),
+    weight: Number(item.weight || 0),
+    volume: Number(item.volume || 0),
+    inventoryHours: Number(item.inventoryHours || 0),
+    transitHours: Number(item.transitHours || 0),
+    codNeed: item.cod_need ?? item.codNeed ?? "",
+    isReceiverPay: item.is_receiver_pay ?? item.isReceiverPay ?? "",
+    isRefund: item.is_refund ?? item.isRefund ?? "",
+    isProblemPiece: item.isProblemPiece ?? "",
+    waybillStatus: item.waybill_status ?? item.waybillStatus ?? "",
+    operateSiteType: item.operate_site_type ?? item.operateSiteType ?? "",
+    operateSiteName: item.operate_site_name ?? item.operateSiteName ?? "",
+    destinationSiteName:
+      item.destination_site_name ?? item.destinationSiteName ?? "",
+    sendNextStation: item.SEND_NEXTSTATION ?? item.sendNextStation ?? "",
+    problemCategory:
+      item.proble_type_subject_name ?? item.problemCategory ?? "",
+    problemType: item.second_level_type_name ?? item.problemType ?? "",
+    abnormalRemark: item.abnormal_remark ?? item.abnormalRemark ?? "",
+    takeScanTime: item.take_scantime ?? item.takeScanTime ?? "",
+    operateScanTime1:
+      item.operate_scantime_1 ?? item.operateScanTime1 ??
+      item.operateScanTime ?? "",
+    operateScanTime2:
+      item.operate_scantime_2 ?? item.operateScanTime2 ?? "",
+    abnormalRegisterTime:
+      item.abnormal_reg_time ?? item.abnormalRegisterTime ?? "",
+    proxyAreaName: item.proxy_area_name ?? item.proxyAreaName ?? "",
+    takeProxyAreaName:
+      item.take_proxy_area_name ?? item.takeProxyAreaName ?? "",
+    destinationProxyAreaName:
+      item.dest_proxy_area_name ?? item.destinationProxyAreaName ?? "",
+    takeSiteName: item.take_site_name ?? item.takeSiteName ?? "",
+    firstDistributionName:
+      item.first_distribution_name ?? item.firstDistributionName ?? "",
+    destinationDistributionName:
+      item.destination_distribution_name ??
+      item.destinationDistributionName ?? "",
+    expressTypeName: item.express_type_name ?? item.expressTypeName ?? "",
+    deliverCount: Number(item.deliver_count || item.deliverCount || 0),
+    dispatchName: item.dispatch_name ?? item.dispatchName ?? "",
+    shipHour: item.ship_hour ?? item.shipHour ?? ""
   };
 }
 

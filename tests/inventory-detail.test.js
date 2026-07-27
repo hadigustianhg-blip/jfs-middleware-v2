@@ -91,6 +91,84 @@ test("inventory detail headers match required JFS report headers", () => {
   assert.equal(headers["Sec-CH-UA"], undefined);
 });
 
+test("inventory detail maps raw JFS record fields and numeric values", () => {
+  const mapped = mapInventoryDetailRecord({
+    proxy_area_name: "Bandung",
+    operate_scantime_1: "2026-07-25 09:50:49",
+    take_proxy_area_name: "DKI Jakarta",
+    cod_need: "ya",
+    operate_scantime_2: "2026-07-25 09:50:49",
+    proble_type_subject_name: "Kategori Pelanggan",
+    is_receiver_pay: "tidak",
+    dest_proxy_area_name: "Bandung",
+    package_number: "1",
+    inventoryHours: 48,
+    operate_site_type: "dalam perjalanan",
+    abnormal_reg_time: "2026-07-26 13:31:45",
+    take_scantime: "2026-07-22 21:24:59",
+    SEND_NEXTSTATION: "SUM001A",
+    customer_code: "J0086027538",
+    is_refund: "tidak",
+    take_site_name: "JKT098A",
+    goods_name: "Bingkai foto",
+    destination_distribution_name: "GW-Bandung",
+    second_level_type_name: "Penerima tidak dapat dihubungi",
+    destination_site_name: "SUM001A",
+    waybill_status: "sedang delivery",
+    operate_site_name: "SUM001A",
+    weight: "9.00",
+    volume: "0.000",
+    express_type_name: "FastTrack",
+    abnormal_remark: "Penerima tidak dapat dihubungi",
+    ship_hour: "",
+    transitHours: 1,
+    name: "TikTok",
+    billcode: "TEST570520810340",
+    first_distribution_name: "GW-Jakarta",
+    deliver_count: "3",
+    dispatch_name: "Kirim",
+    isProblemPiece: "tidak"
+  });
+
+  assert.deepEqual(mapped, {
+    billCode: "TEST570520810340",
+    customerName: "TikTok",
+    customerCode: "J0086027538",
+    goodsName: "Bingkai foto",
+    packageNumber: 1,
+    weight: 9,
+    volume: 0,
+    inventoryHours: 48,
+    transitHours: 1,
+    codNeed: "ya",
+    isReceiverPay: "tidak",
+    isRefund: "tidak",
+    isProblemPiece: "tidak",
+    waybillStatus: "sedang delivery",
+    operateSiteType: "dalam perjalanan",
+    operateSiteName: "SUM001A",
+    destinationSiteName: "SUM001A",
+    sendNextStation: "SUM001A",
+    problemCategory: "Kategori Pelanggan",
+    problemType: "Penerima tidak dapat dihubungi",
+    abnormalRemark: "Penerima tidak dapat dihubungi",
+    takeScanTime: "2026-07-22 21:24:59",
+    operateScanTime1: "2026-07-25 09:50:49",
+    operateScanTime2: "2026-07-25 09:50:49",
+    abnormalRegisterTime: "2026-07-26 13:31:45",
+    proxyAreaName: "Bandung",
+    takeProxyAreaName: "DKI Jakarta",
+    destinationProxyAreaName: "Bandung",
+    takeSiteName: "JKT098A",
+    firstDistributionName: "GW-Jakarta",
+    destinationDistributionName: "GW-Bandung",
+    expressTypeName: "FastTrack",
+    deliverCount: 3,
+    dispatchName: "Kirim",
+    shipHour: ""
+  });
+});
+
 test("inventory detail paginates, maps output, and delays between pages", async () => {
   const requests = [];
   const delays = [];
@@ -131,11 +209,16 @@ test("inventory detail paginates, maps output, and delays between pages", async 
   assert.equal(result.pageCount, 2);
   assert.equal(result.data.length, 3);
   assert.deepEqual(Object.keys(result.data[0]), [
-    "billCode", "customerName", "goodsName", "packageNumber", "weight",
-    "inventoryHours", "codNeed", "waybillStatus", "operateSiteType",
-    "operateSiteName", "destinationSiteName", "sendNextStation",
-    "problemCategory", "problemType", "abnormalRemark", "takeScanTime",
-    "operateScanTime", "abnormalRegisterTime"
+    "billCode", "customerName", "customerCode", "goodsName", "packageNumber",
+    "weight", "volume", "inventoryHours", "transitHours", "codNeed",
+    "isReceiverPay", "isRefund", "isProblemPiece", "waybillStatus",
+    "operateSiteType", "operateSiteName", "destinationSiteName",
+    "sendNextStation", "problemCategory", "problemType", "abnormalRemark",
+    "takeScanTime", "operateScanTime1", "operateScanTime2",
+    "abnormalRegisterTime", "proxyAreaName", "takeProxyAreaName",
+    "destinationProxyAreaName", "takeSiteName", "firstDistributionName",
+    "destinationDistributionName", "expressTypeName", "deliverCount",
+    "dispatchName", "shipHour"
   ]);
   assert.equal(result.data[0].weight, 0);
   assert.equal(result.data[0].ignored, undefined);
