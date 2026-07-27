@@ -20,7 +20,7 @@ function buildInventoryDetailPayload({
   return {
     billCode,
     isOverDate: "",
-    queryFlag: "all",
+    queryFlag: "2",
     beginDate: `${startDate} 00:00:00`,
     endDate: `${endDate} 23:59:59`,
     operateSiteType: "all",
