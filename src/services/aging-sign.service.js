@@ -1,24 +1,22 @@
 "use strict";
 
 const { scrapeAgingSign } = require("../scrapers/aging-sign.scraper");
+const { executeWithAuthRetry } = require("../utils/auth-retry");
 
 function createAgingSignService({
   scrapeAgingSignFn = scrapeAgingSign,
-  getAuthToken = () => process.env.AUTH_TOKEN || ""
+  getAuthToken = () => process.env.AUTH_TOKEN || "",
+  refreshAuth
 } = {}) {
   return {
     async getAgingSign(options) {
-      const authToken = getAuthToken();
-
-      if (!authToken) {
-        const error = new Error("Token kosong");
-        error.code = "TOKEN_EMPTY";
-        throw error;
-      }
-
-      return scrapeAgingSignFn({
-        ...options,
-        authToken
+      return executeWithAuthRetry({
+        getAuthToken,
+        refreshAuth,
+        operation: authToken => scrapeAgingSignFn({
+          ...options,
+          authToken
+        })
       });
     }
   };

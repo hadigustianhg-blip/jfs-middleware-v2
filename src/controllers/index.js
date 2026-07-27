@@ -10,12 +10,16 @@ const {
   createInventoryDetailController
 } = require("./inventory-detail.controller");
 const {
+  createJfsAuthController
+} = require("./jfs-auth.controller");
+const {
   createWaybillStatusController
 } = require("./waybill-status.controller");
 
 module.exports = {
   createAgingSignController,
   createInventoryDetailController,
+  createJfsAuthController,
   createSensitiveController,
   createWaybillStatusController
 };

@@ -4,6 +4,7 @@ const express = require("express");
 const {
   createAgingSignController,
   createInventoryDetailController,
+  createJfsAuthController,
   createSensitiveController,
   createWaybillStatusController
 } = require("../controllers");
@@ -23,13 +24,29 @@ const {
   createInventoryDetailRoutes
 } = require("./inventory-detail.routes");
 const { createWaybillStatusRoutes } = require("./waybill-status.routes");
+const { createJfsAuthRoutes } = require("./jfs-auth.routes");
 
-function createModularRoutes({ getAuthToken } = {}) {
+function createModularRoutes({ getAuthToken, authManager } = {}) {
   const router = express.Router();
-  const agingSignService = createAgingSignService({ getAuthToken });
-  const inventoryDetailService = createInventoryDetailService({ getAuthToken });
-  const sensitiveService = createSensitiveService({ getAuthToken });
-  const waybillStatusService = createWaybillStatusService({ getAuthToken });
+  const refreshAuth = authManager
+    ? () => authManager.refreshLogin()
+    : undefined;
+  const agingSignService = createAgingSignService({
+    getAuthToken,
+    refreshAuth
+  });
+  const inventoryDetailService = createInventoryDetailService({
+    getAuthToken,
+    refreshAuth
+  });
+  const sensitiveService = createSensitiveService({
+    getAuthToken,
+    refreshAuth
+  });
+  const waybillStatusService = createWaybillStatusService({
+    getAuthToken,
+    refreshAuth
+  });
   const agingSignController = createAgingSignController({
     agingSignService
   });
@@ -43,6 +60,12 @@ function createModularRoutes({ getAuthToken } = {}) {
     waybillStatusService
   });
 
+  if (authManager) {
+    const jfsAuthController = createJfsAuthController({ authManager });
+    router.use(createJfsAuthRoutes({
+      login: jfsAuthController.login
+    }));
+  }
   router.use(createWaybillStatusRoutes({
     getWaybillStatusBatch: waybillStatusController.getWaybillStatusBatch
   }));

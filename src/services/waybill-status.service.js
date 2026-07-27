@@ -3,6 +3,7 @@
 const {
   scrapeWaybillStatus
 } = require("../scrapers/waybill-status.scraper");
+const { executeWithAuthRetry } = require("../utils/auth-retry");
 
 const MAX_WAYBILLS = 500;
 const JFS_BATCH_SIZE = 100;
@@ -34,14 +35,13 @@ function normalizeWaybills(waybills) {
 
 function createWaybillStatusService({
   scrapeWaybillStatusFn = scrapeWaybillStatus,
-  getAuthToken = () => process.env.AUTH_TOKEN || ""
+  getAuthToken = () => process.env.AUTH_TOKEN || "",
+  refreshAuth
 } = {}) {
   return {
     async getWaybillStatusBatch({ waybills, startDate, endDate }) {
       const normalizedWaybills = normalizeWaybills(waybills);
-      const authToken = getAuthToken();
-
-      if (!authToken) {
+      if (!getAuthToken()) {
         const error = new Error("Token kosong");
         error.code = "TOKEN_EMPTY";
         throw error;
@@ -60,11 +60,15 @@ function createWaybillStatusService({
         const batch = normalizedWaybills.slice(offset, offset + JFS_BATCH_SIZE);
 
         try {
-          const result = await scrapeWaybillStatusFn({
-            waybills: batch,
-            startDate,
-            endDate,
-            authToken
+          const result = await executeWithAuthRetry({
+            getAuthToken,
+            refreshAuth,
+            operation: authToken => scrapeWaybillStatusFn({
+              waybills: batch,
+              startDate,
+              endDate,
+              authToken
+            })
           });
 
           for (const waybill of batch) {

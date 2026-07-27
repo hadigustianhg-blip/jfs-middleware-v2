@@ -159,6 +159,21 @@
       "errorVariants": [["success", "error"]],
       "verifiedByTest": true,
       "sourceAnalyzed": true
+    },
+    "POST /jfs-auth/login": {
+      "status": "modular",
+      "classifications": ["authentication", "security-sensitive"],
+      "queryParameters": [],
+      "requestBodyParameters": ["account", "password"],
+      "requiredHeaders": ["X-Auth-Key"],
+      "successStatus": 200,
+      "successResponseType": "json",
+      "successTopLevelKeys": ["success", "message", "networkCode", "name"],
+      "errorStatuses": [401],
+      "errorTopLevelKeys": ["success", "error"],
+      "errorVariants": [["success", "error"]],
+      "verifiedByTest": true,
+      "sourceAnalyzed": true
     }
   }
 }

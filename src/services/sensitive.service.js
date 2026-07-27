@@ -3,24 +3,22 @@
 const {
   scrapeSensitiveDetail
 } = require("../scrapers/sensitive.scraper");
+const { executeWithAuthRetry } = require("../utils/auth-retry");
 
 function createSensitiveService({
   scrapeSensitiveDetailFn = scrapeSensitiveDetail,
-  getAuthToken = () => process.env.AUTH_TOKEN || ""
+  getAuthToken = () => process.env.AUTH_TOKEN || "",
+  refreshAuth
 } = {}) {
   return {
     async getSensitiveDetail(options) {
-      const authToken = getAuthToken();
-
-      if (!authToken) {
-        const error = new Error("Token kosong");
-        error.code = "TOKEN_EMPTY";
-        throw error;
-      }
-
-      return scrapeSensitiveDetailFn({
-        ...options,
-        authToken
+      return executeWithAuthRetry({
+        getAuthToken,
+        refreshAuth,
+        operation: authToken => scrapeSensitiveDetailFn({
+          ...options,
+          authToken
+        })
       });
     }
   };

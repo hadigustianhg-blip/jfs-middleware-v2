@@ -16,6 +16,20 @@ const {
 const {
   createWaybillStatusRoutes
 } = require("../src/routes/waybill-status.routes");
+const {
+  createJfsAuthRoutes
+} = require("../src/routes/jfs-auth.routes");
+
+function createMockAuthManager() {
+  return {
+    async loginWithCredentials() {
+      return { token: "TEST_TOKEN", networkCode: "", name: "" };
+    },
+    async refreshLogin() {
+      return { token: "TEST_TOKEN" };
+    }
+  };
+}
 const { createModularRoutes } = require("../src/routes");
 
 function routeSummary(router) {
@@ -41,6 +55,7 @@ test("individual routes preserve paths, GET methods, and handlers", () => {
   const sensitiveHandler = () => {};
   const inventoryDetailHandler = () => {};
   const waybillStatusHandler = () => {};
+  const authLoginHandler = () => {};
   const agingRouter = createAgingSignRoutes({
     getAgingSign: agingHandler
   });
@@ -52,6 +67,9 @@ test("individual routes preserve paths, GET methods, and handlers", () => {
   });
   const waybillStatusRouter = createWaybillStatusRoutes({
     getWaybillStatusBatch: waybillStatusHandler
+  });
+  const authRouter = createJfsAuthRoutes({
+    login: authLoginHandler
   });
 
   assert.deepEqual(routeSummary(agingRouter), [{
@@ -84,15 +102,25 @@ test("individual routes preserve paths, GET methods, and handlers", () => {
     waybillStatusRouter.stack[0].route.stack[0].handle,
     waybillStatusHandler
   );
+  assert.deepEqual(routeSummary(authRouter), [{
+    path: "/jfs-auth/login",
+    methods: ["post"]
+  }]);
+  assert.strictEqual(
+    authRouter.stack[0].route.stack[0].handle,
+    authLoginHandler
+  );
 });
 
 test("modular router has no prefixes or duplicate endpoints", () => {
   const router = createModularRoutes({
-    getAuthToken: () => "TEST_TOKEN"
+    getAuthToken: () => "TEST_TOKEN",
+    authManager: createMockAuthManager()
   });
   const routes = routeSummary(router);
 
   assert.deepEqual(routes, [
+    { path: "/jfs-auth/login", methods: ["post"] },
     { path: "/jfs-waybill-status-batch", methods: ["post"] },
     { path: "/jfs-aging-sign", methods: ["get"] },
     { path: "/jfs-sensitive", methods: ["get"] },
@@ -104,7 +132,7 @@ test("modular router has no prefixes or duplicate endpoints", () => {
   );
 });
 
-test("legacy and modular registrations together expose all twelve endpoints", () => {
+test("legacy and modular registrations together expose all thirteen endpoints", () => {
   const serverSource = fs.readFileSync(
     path.join(__dirname, "..", "server.js"),
     "utf8"
@@ -113,12 +141,13 @@ test("legacy and modular registrations together expose all twelve endpoints", ()
     /app\.get\("([^"]+)"/g
   )].map(match => match[1]);
   const modularPaths = routeSummary(createModularRoutes({
-    getAuthToken: () => "TEST_TOKEN"
+    getAuthToken: () => "TEST_TOKEN",
+    authManager: createMockAuthManager()
   })).map(route => route.path);
   const paths = [...legacyPaths, ...modularPaths];
 
-  assert.equal(paths.length, 12);
-  assert.equal(new Set(paths).size, 12);
+  assert.equal(paths.length, 13);
+  assert.equal(new Set(paths).size, 13);
   assert.ok(paths.includes("/"));
   assert.ok(paths.includes("/set-token"));
   assert.equal(paths.filter(pathValue => pathValue === "/jfs-aging-sign").length, 1);
@@ -131,4 +160,5 @@ test("legacy and modular registrations together expose all twelve endpoints", ()
     paths.filter(pathValue => pathValue === "/jfs-waybill-status-batch").length,
     1
   );
+  assert.equal(paths.filter(pathValue => pathValue === "/jfs-auth/login").length, 1);
 });

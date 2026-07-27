@@ -4,6 +4,12 @@ const cors = require("cors");
 const FormData = require("form-data");
 const moment = require("moment-timezone");
 const { createModularRoutes } = require("./src/routes");
+const {
+  createJfsAuthManager
+} = require("./src/auth/jfs-auth-manager");
+const {
+  installAxiosAuthRetry
+} = require("./src/auth/axios-auth-retry");
 
 const app = express();
 
@@ -12,9 +18,17 @@ app.use(express.json());
 
 // 🔐 TOKEN
 let AUTH_TOKEN = process.env.AUTH_TOKEN || "";
+const authManager = createJfsAuthManager({
+  initialToken: AUTH_TOKEN,
+  onToken: token => {
+    AUTH_TOKEN = token;
+  }
+});
+installAxiosAuthRetry(axios, authManager);
 
 app.use(createModularRoutes({
-  getAuthToken: () => AUTH_TOKEN
+  getAuthToken: () => AUTH_TOKEN,
+  authManager
 }));
 
 // ================= ROOT =================
@@ -29,6 +43,7 @@ app.get("/set-token", (req, res) => {
   }
 
   AUTH_TOKEN = req.query.token;
+  authManager.setToken(AUTH_TOKEN);
 
   res.json({
     message: "Token berhasil diupdate",
