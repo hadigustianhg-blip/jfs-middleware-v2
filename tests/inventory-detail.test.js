@@ -4,8 +4,10 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   INVENTORY_DETAIL_SQL_CODE,
+  INVENTORY_DETAIL_ROUTE_NAME,
   INVENTORY_DETAIL_URL,
   PAGE_DELAY_MS,
+  buildInventoryDetailHeaders,
   buildInventoryDetailPayload,
   mapInventoryDetailRecord,
   scrapeInventoryDetail
@@ -40,17 +42,53 @@ test("inventory detail payload follows the JFS report request", () => {
     current: 2,
     size: 100
   }), {
+    billCode: "TEST000001",
+    isOverDate: "",
+    queryFlag: "all",
     beginDate: "2026-07-01 00:00:00",
     endDate: "2026-07-02 23:59:59",
-    billCode: "TEST000001",
-    sqlCode: "realtime_inv_man_dtl",
-    paginationSearchType: "list",
     operateSiteType: "all",
-    queryFlag: "all",
+    expressTypeCode: "",
+    codNeed: "",
+    invOverTm: "",
+    shipHour: "",
+    customerCode: "",
+    isRefund: "",
+    sqlCode: "realtime_inv_man_dtl",
     current: 2,
-    size: 100
+    size: 100,
+    convertResultFromDictionCode:
+      "is_receiver_pay|124,isProblemPiece|124,cod_need|124,is_refund|124",
+    convertResultFromDictionOriCode: "",
+    paginationSearchType: "list",
+    countryId: "1"
   });
   assert.equal(INVENTORY_DETAIL_SQL_CODE, "realtime_inv_man_dtl");
+});
+
+test("inventory detail headers match required JFS report headers", () => {
+  const headers = buildInventoryDetailHeaders("TEST_TOKEN");
+
+  assert.deepEqual(headers, {
+    Accept: "application/json, text/plain, */*",
+    "Accept-Language": "id,en-US;q=0.9,en;q=0.8",
+    "Cache-Control": "max-age=2, must-revalidate",
+    "Content-Type": "application/json;charset=UTF-8",
+    Authtoken: "TEST_TOKEN",
+    Lang: "ID",
+    Langtype: "ID",
+    Origin: "https://jfs.jtcargo.co.id",
+    Referer: "https://jfs.jtcargo.co.id/",
+    Routename: INVENTORY_DETAIL_ROUTE_NAME,
+    "User-Agent": "Mozilla/5.0"
+  });
+  assert.equal(
+    INVENTORY_DETAIL_ROUTE_NAME,
+    "Bd-theme-4d718ae8-fa85-4edc-b98c-1a0f75e5f9f3|businessIndicatorIndex"
+  );
+  assert.equal(headers.Cookie, undefined);
+  assert.equal(headers.Priority, undefined);
+  assert.equal(headers["Sec-CH-UA"], undefined);
 });
 
 test("inventory detail paginates, maps output, and delays between pages", async () => {
@@ -85,6 +123,10 @@ test("inventory detail paginates, maps output, and delays between pages", async 
   assert.equal(requests[0].method, "POST");
   assert.equal(requests[0].url, INVENTORY_DETAIL_URL);
   assert.equal(requests[0].headers.Authtoken, "TEST_TOKEN");
+  assert.equal(
+    requests[0].headers.Routename,
+    INVENTORY_DETAIL_ROUTE_NAME
+  );
   assert.equal(requests[1].body.current, 2);
   assert.equal(result.pageCount, 2);
   assert.equal(result.data.length, 3);

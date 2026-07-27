@@ -6,6 +6,8 @@ const { fetchAllPages } = require("../utils/pagination");
 const INVENTORY_DETAIL_URL =
   "https://jfsgw.jtcargo.co.id/jfs-report-leader/report/dynamicReport/findByPagination?sqlCode=realtime_inv_man_dtl&dcr_key=57b048fb-bc8c-4d24-982b-a750b7ce8693";
 const INVENTORY_DETAIL_SQL_CODE = "realtime_inv_man_dtl";
+const INVENTORY_DETAIL_ROUTE_NAME =
+  "Bd-theme-4d718ae8-fa85-4edc-b98c-1a0f75e5f9f3|businessIndicatorIndex";
 const PAGE_DELAY_MS = 300;
 
 function buildInventoryDetailPayload({
@@ -16,27 +18,41 @@ function buildInventoryDetailPayload({
   size
 }) {
   return {
+    billCode,
+    isOverDate: "",
+    queryFlag: "all",
     beginDate: `${startDate} 00:00:00`,
     endDate: `${endDate} 23:59:59`,
-    billCode,
-    sqlCode: INVENTORY_DETAIL_SQL_CODE,
-    paginationSearchType: "list",
     operateSiteType: "all",
-    queryFlag: "all",
+    expressTypeCode: "",
+    codNeed: "",
+    invOverTm: "",
+    shipHour: "",
+    customerCode: "",
+    isRefund: "",
+    sqlCode: INVENTORY_DETAIL_SQL_CODE,
     current,
-    size
+    size,
+    convertResultFromDictionCode:
+      "is_receiver_pay|124,isProblemPiece|124,cod_need|124,is_refund|124",
+    convertResultFromDictionOriCode: "",
+    paginationSearchType: "list",
+    countryId: "1"
   };
 }
 
 function buildInventoryDetailHeaders(authToken) {
   return {
     Accept: "application/json, text/plain, */*",
+    "Accept-Language": "id,en-US;q=0.9,en;q=0.8",
+    "Cache-Control": "max-age=2, must-revalidate",
     "Content-Type": "application/json;charset=UTF-8",
     Authtoken: authToken,
     Lang: "ID",
     Langtype: "ID",
     Origin: "https://jfs.jtcargo.co.id",
     Referer: "https://jfs.jtcargo.co.id/",
+    Routename: INVENTORY_DETAIL_ROUTE_NAME,
     "User-Agent": "Mozilla/5.0"
   };
 }
@@ -115,6 +131,7 @@ async function scrapeInventoryDetail({
 
 module.exports = {
   INVENTORY_DETAIL_SQL_CODE,
+  INVENTORY_DETAIL_ROUTE_NAME,
   INVENTORY_DETAIL_URL,
   PAGE_DELAY_MS,
   buildInventoryDetailHeaders,
