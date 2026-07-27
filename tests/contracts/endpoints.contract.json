@@ -132,6 +132,19 @@
       "errorVariants": [["error"], ["error", "detail"]],
       "verifiedByTest": false,
       "sourceAnalyzed": true
+    },
+    "GET /jfs-inventory-detail": {
+      "status": "modular",
+      "classifications": ["scraper", "paginated", "heavy"],
+      "queryParameters": ["startDate", "endDate", "billCode", "size", "maxPage"],
+      "successStatus": 200,
+      "successResponseType": "json",
+      "successTopLevelKeys": ["success", "total", "pages", "data"],
+      "errorStatuses": [400, 500],
+      "errorTopLevelKeys": ["error", "detail"],
+      "errorVariants": [["error"], ["error", "detail"]],
+      "verifiedByTest": true,
+      "sourceAnalyzed": true
     }
   }
 }

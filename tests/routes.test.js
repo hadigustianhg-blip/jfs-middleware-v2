@@ -10,6 +10,9 @@ const {
 const {
   createSensitiveRoutes
 } = require("../src/routes/sensitive.routes");
+const {
+  createInventoryDetailRoutes
+} = require("../src/routes/inventory-detail.routes");
 const { createModularRoutes } = require("../src/routes");
 
 function routeSummary(router) {
@@ -33,11 +36,15 @@ function routeSummary(router) {
 test("individual routes preserve paths, GET methods, and handlers", () => {
   const agingHandler = () => {};
   const sensitiveHandler = () => {};
+  const inventoryDetailHandler = () => {};
   const agingRouter = createAgingSignRoutes({
     getAgingSign: agingHandler
   });
   const sensitiveRouter = createSensitiveRoutes({
     getSensitiveDetail: sensitiveHandler
+  });
+  const inventoryDetailRouter = createInventoryDetailRoutes({
+    getInventoryDetail: inventoryDetailHandler
   });
 
   assert.deepEqual(routeSummary(agingRouter), [{
@@ -54,6 +61,14 @@ test("individual routes preserve paths, GET methods, and handlers", () => {
     sensitiveRouter.stack[0].route.stack[0].handle,
     sensitiveHandler
   );
+  assert.deepEqual(routeSummary(inventoryDetailRouter), [{
+    path: "/jfs-inventory-detail",
+    methods: ["get"]
+  }]);
+  assert.strictEqual(
+    inventoryDetailRouter.stack[0].route.stack[0].handle,
+    inventoryDetailHandler
+  );
 });
 
 test("modular router has no prefixes or duplicate endpoints", () => {
@@ -64,7 +79,8 @@ test("modular router has no prefixes or duplicate endpoints", () => {
 
   assert.deepEqual(routes, [
     { path: "/jfs-aging-sign", methods: ["get"] },
-    { path: "/jfs-sensitive", methods: ["get"] }
+    { path: "/jfs-sensitive", methods: ["get"] },
+    { path: "/jfs-inventory-detail", methods: ["get"] }
   ]);
   assert.equal(
     new Set(routes.map(route => `${route.methods[0]} ${route.path}`)).size,
@@ -72,7 +88,7 @@ test("modular router has no prefixes or duplicate endpoints", () => {
   );
 });
 
-test("legacy and modular registrations together preserve all ten endpoints", () => {
+test("legacy and modular registrations together expose all eleven endpoints", () => {
   const serverSource = fs.readFileSync(
     path.join(__dirname, "..", "server.js"),
     "utf8"
@@ -85,10 +101,14 @@ test("legacy and modular registrations together preserve all ten endpoints", () 
   })).map(route => route.path);
   const paths = [...legacyPaths, ...modularPaths];
 
-  assert.equal(paths.length, 10);
-  assert.equal(new Set(paths).size, 10);
+  assert.equal(paths.length, 11);
+  assert.equal(new Set(paths).size, 11);
   assert.ok(paths.includes("/"));
   assert.ok(paths.includes("/set-token"));
   assert.equal(paths.filter(pathValue => pathValue === "/jfs-aging-sign").length, 1);
   assert.equal(paths.filter(pathValue => pathValue === "/jfs-sensitive").length, 1);
+  assert.equal(
+    paths.filter(pathValue => pathValue === "/jfs-inventory-detail").length,
+    1
+  );
 });

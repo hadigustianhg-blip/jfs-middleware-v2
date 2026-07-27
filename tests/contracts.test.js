@@ -26,7 +26,7 @@ test("contract manifest is valid JSON without duplicate endpoint entries", () =>
 
   assert.equal(rawEndpointEntries.length, names.length);
   assert.equal(new Set(names).size, names.length);
-  assert.equal(names.length, 10);
+  assert.equal(names.length, 11);
 });
 
 test("contract manifest records every source endpoint", () => {
@@ -76,6 +76,7 @@ test("modular and sensitive endpoints are classified accurately", () => {
 
   assert.equal(contracts["GET /jfs-aging-sign"].status, "modular");
   assert.equal(contracts["GET /jfs-sensitive"].status, "modular");
+  assert.equal(contracts["GET /jfs-inventory-detail"].status, "modular");
   assert.equal(contracts["GET /jfs-pickup"].status, "legacy");
   assert.equal(contracts["GET /jfs-inventory"].status, "legacy");
   assert.ok(
