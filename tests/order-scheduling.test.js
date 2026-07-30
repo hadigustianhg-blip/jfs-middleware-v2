@@ -5,6 +5,32 @@ const assert = require("node:assert/strict");
 const {
   DETAIL_URL, LIST_URL, mapListOrder, scrapeOrderDetail, scrapeOrderList
 } = require("../src/scrapers/order-scheduling.scraper");
+const { parseOrderListRange } = require("../src/controllers/order-scheduling.controller");
+
+test("maps custom dates to complete Jakarta calendar days", () => {
+  assert.deepEqual(parseOrderListRange({
+    startDate: "2026-07-27",
+    endDate: "2026-07-30"
+  }), {
+    startTime: "2026-07-27 00:00:00",
+    endTime: "2026-07-30 23:59:59"
+  });
+});
+
+test("defaults both dates to today when date query is absent", () => {
+  const range = parseOrderListRange({});
+  assert.match(range.startTime, /^\d{4}-\d{2}-\d{2} 00:00:00$/);
+  assert.equal(range.endTime, `${range.startTime.slice(0, 10)} 23:59:59`);
+});
+
+test("rejects reversed and over-31-day ranges", () => {
+  assert.throws(() => parseOrderListRange({
+    startDate: "2026-07-30", endDate: "2026-07-29"
+  }), /INVALID_DATE_RANGE/);
+  assert.throws(() => parseOrderListRange({
+    startDate: "2026-06-01", endDate: "2026-07-02"
+  }), /DATE_RANGE_TOO_LARGE/);
+});
 
 test("list-only sync paginates without requesting any detail", async () => {
   const urls = [];
@@ -32,6 +58,26 @@ test("N list orders do not create N detail requests", async () => {
     }
   });
   assert.equal(details, 0);
+});
+
+test("fetches every source page in the selected range", async () => {
+  const pageSizes = [100, 100, 5];
+  let page = 0;
+  const data = await scrapeOrderList({
+    startTime: "2026-07-27 00:00:00", endTime: "2026-07-30 23:59:59",
+    authToken: "token",
+    requestFn: async () => {
+      const size = pageSizes[page++];
+      return { data: { data: {
+        total: 205,
+        records: Array.from({ length: size }, (_, index) => ({
+          id: `${page}-${index}`, waybillId: `WB-${page}-${index}`
+        }))
+      } } };
+    }
+  });
+  assert.equal(page, 3);
+  assert.equal(data.length, 205);
 });
 
 test("single detail request maps only the required sensitive fields", async () => {

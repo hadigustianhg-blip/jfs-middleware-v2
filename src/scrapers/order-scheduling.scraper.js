@@ -71,7 +71,11 @@ async function scrapeOrderList({ startTime, endTime, authToken, requestFn = exte
     const records = response?.data?.data?.records;
     if (!Array.isArray(records)) throw new Error("INVALID_ORDER_LIST_RESPONSE");
     data.push(...records.map(mapListOrder));
-    if (records.length < 100) break;
+    const total = Number(response?.data?.data?.total);
+    if (
+      records.length < 100 ||
+      (Number.isFinite(total) && total >= 0 && data.length >= total)
+    ) break;
   }
   return data;
 }

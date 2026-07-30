@@ -109,7 +109,7 @@
     "GET /jfs-order-sync": {
       "status": "legacy",
       "classifications": ["scraper", "heavy"],
-      "queryParameters": ["start", "end"],
+      "queryParameters": ["startDate", "endDate"],
       "successStatus": 200,
       "successResponseType": "json",
       "successTopLevelKeys": ["success", "total", "startTime", "endTime", "syncTime", "data"],
