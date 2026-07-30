@@ -106,6 +106,19 @@
       "verifiedByTest": true,
       "sourceAnalyzed": true
     },
+    "GET /jfs-sender-detail": {
+      "status": "modular",
+      "classifications": ["scraper", "security-sensitive"],
+      "queryParameters": ["waybillNo"],
+      "successStatus": 200,
+      "successResponseType": "json",
+      "successTopLevelKeys": ["success", "data", "meta"],
+      "errorStatuses": [400, 404, 500, 502, 504],
+      "errorTopLevelKeys": ["success", "error"],
+      "errorVariants": [["success", "error"]],
+      "verifiedByTest": true,
+      "sourceAnalyzed": true
+    },
     "GET /jfs-order-sync": {
       "status": "legacy",
       "classifications": ["scraper", "heavy"],

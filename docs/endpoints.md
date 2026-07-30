@@ -106,6 +106,39 @@ ditandai secara eksplisit.
 - Risiko: response berisi data pribadi.
 - Test: scraper, service, controller, route, mapping, empty data, dan error diuji.
 
+## GET /jfs-sender-detail
+
+- Status: Modular, security-sensitive.
+- Query: `waybillNo` wajib, hanya digit dengan panjang 8-20 karakter.
+- Sukses `200`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "senderName": "ARYA SETYA DARMAWAN",
+    "senderMobilePhone": "087777376950",
+    "senderCityName": "Kab. Sumedang"
+  },
+  "meta": {
+    "waybillNo": "201680658475",
+    "source": "JFS"
+  }
+}
+```
+
+- Invalid input `400`: `INVALID_WAYBILL_NO`.
+- Data tidak ditemukan `404`: `SENDER_DETAIL_NOT_FOUND`.
+- Token kosong `500`: `JFS_AUTH_NOT_CONFIGURED`.
+- Sesi ditolak `502`: `JFS_AUTH_EXPIRED`.
+- Timeout `504`: `JFS_UPSTREAM_TIMEOUT`.
+- Error upstream lain `502`: `JFS_UPSTREAM_ERROR`.
+- Upstream: detail secret OMS waybill, GET.
+- Response hanya mengekspos `senderName`, `senderMobilePhone`, dan
+  `senderCityName`; data internal upstream tidak diteruskan.
+- Test: request, mapping, normalisasi, validasi, auth, timeout, invalid JSON,
+  not-found, dan kontrak response diuji dengan mock.
+
 ## GET /jfs-order-sync
 
 - Status: Legacy, heavy.

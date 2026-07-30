@@ -6,6 +6,7 @@ const {
   createInventoryDetailController,
   createIbkReportController,
   createJfsAuthController,
+  createSenderDetailController,
   createSensitiveController,
   createWaybillStatusController
 } = require("../controllers");
@@ -13,6 +14,7 @@ const {
   createAgingSignService,
   createInventoryDetailService,
   createIbkReportService,
+  createSenderDetailService,
   createSensitiveService,
   createWaybillStatusService
 } = require("../services");
@@ -31,6 +33,7 @@ const { createOrderSchedulingRoutes } = require("./order-scheduling.routes");
 const { createOrderSchedulingController } = require("../controllers/order-scheduling.controller");
 const { createOrderSchedulingService } = require("../services/order-scheduling.service");
 const { createIbkReportRoutes } = require("./ibk-report.routes");
+const { createSenderDetailRoutes } = require("./sender-detail.routes");
 
 function createModularRoutes({ getAuthToken, authManager } = {}) {
   const router = express.Router();
@@ -53,6 +56,10 @@ function createModularRoutes({ getAuthToken, authManager } = {}) {
     getAuthToken,
     refreshAuth
   });
+  const senderDetailService = createSenderDetailService({
+    getAuthToken,
+    refreshAuth
+  });
   const waybillStatusService = createWaybillStatusService({
     getAuthToken,
     refreshAuth
@@ -66,6 +73,9 @@ function createModularRoutes({ getAuthToken, authManager } = {}) {
   });
   const sensitiveController = createSensitiveController({
     sensitiveService
+  });
+  const senderDetailController = createSenderDetailController({
+    senderDetailService
   });
   const inventoryDetailController = createInventoryDetailController({
     inventoryDetailService
@@ -91,6 +101,9 @@ function createModularRoutes({ getAuthToken, authManager } = {}) {
   }));
   router.use(createSensitiveRoutes({
     getSensitiveDetail: sensitiveController.getSensitiveDetail
+  }));
+  router.use(createSenderDetailRoutes({
+    getSenderDetail: senderDetailController.getSenderDetail
   }));
   router.use(createInventoryDetailRoutes({
     getInventoryDetail: inventoryDetailController.getInventoryDetail
