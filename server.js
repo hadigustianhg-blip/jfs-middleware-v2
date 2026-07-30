@@ -493,8 +493,8 @@ app.get("/jfs-cod", async (req, res) => {
   }
 });
 
-// ================= IBK REPORT =================
-app.get("/jfs-ibk-report", async (req, res) => {
+// ================= IBK REPORT (LEGACY REFERENCE) =================
+async function legacyIbkReport(req, res) {
 
   try {
 
@@ -715,7 +715,7 @@ app.get("/jfs-ibk-report", async (req, res) => {
 
   }
 
-});
+}
 function getOmsHeaders(route) {
   return {
     Authtoken: AUTH_TOKEN,

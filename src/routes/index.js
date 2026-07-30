@@ -4,6 +4,7 @@ const express = require("express");
 const {
   createAgingSignController,
   createInventoryDetailController,
+  createIbkReportController,
   createJfsAuthController,
   createSensitiveController,
   createWaybillStatusController
@@ -11,6 +12,7 @@ const {
 const {
   createAgingSignService,
   createInventoryDetailService,
+  createIbkReportService,
   createSensitiveService,
   createWaybillStatusService
 } = require("../services");
@@ -28,6 +30,7 @@ const { createJfsAuthRoutes } = require("./jfs-auth.routes");
 const { createOrderSchedulingRoutes } = require("./order-scheduling.routes");
 const { createOrderSchedulingController } = require("../controllers/order-scheduling.controller");
 const { createOrderSchedulingService } = require("../services/order-scheduling.service");
+const { createIbkReportRoutes } = require("./ibk-report.routes");
 
 function createModularRoutes({ getAuthToken, authManager } = {}) {
   const router = express.Router();
@@ -39,6 +42,10 @@ function createModularRoutes({ getAuthToken, authManager } = {}) {
     refreshAuth
   });
   const inventoryDetailService = createInventoryDetailService({
+    getAuthToken,
+    refreshAuth
+  });
+  const ibkReportService = createIbkReportService({
     getAuthToken,
     refreshAuth
   });
@@ -63,6 +70,9 @@ function createModularRoutes({ getAuthToken, authManager } = {}) {
   const inventoryDetailController = createInventoryDetailController({
     inventoryDetailService
   });
+  const ibkReportController = createIbkReportController({
+    ibkReportService
+  });
   const waybillStatusController = createWaybillStatusController({
     waybillStatusService
   });
@@ -84,6 +94,9 @@ function createModularRoutes({ getAuthToken, authManager } = {}) {
   }));
   router.use(createInventoryDetailRoutes({
     getInventoryDetail: inventoryDetailController.getInventoryDetail
+  }));
+  router.use(createIbkReportRoutes({
+    getIbkReport: ibkReportController.getIbkReport
   }));
   router.use(createOrderSchedulingRoutes(orderSchedulingController));
 

@@ -15,9 +15,13 @@ const {
 const {
   createWaybillStatusController
 } = require("./waybill-status.controller");
+const {
+  createIbkReportController
+} = require("./ibk-report.controller");
 
 module.exports = {
   createAgingSignController,
+  createIbkReportController,
   createInventoryDetailController,
   createJfsAuthController,
   createSensitiveController,

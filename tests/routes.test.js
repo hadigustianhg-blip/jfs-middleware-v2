@@ -125,6 +125,7 @@ test("modular router has no prefixes or duplicate endpoints", () => {
     { path: "/jfs-aging-sign", methods: ["get"] },
     { path: "/jfs-sensitive", methods: ["get"] },
     { path: "/jfs-inventory-detail", methods: ["get"] },
+    { path: "/jfs-ibk-report", methods: ["get"] },
     { path: "/jfs-order-list-sync", methods: ["get"] },
     { path: "/jfs-order-detail", methods: ["get"] }
   ]);
@@ -158,6 +159,7 @@ test("legacy and modular registrations together expose all fifteen endpoints", (
     paths.filter(pathValue => pathValue === "/jfs-inventory-detail").length,
     1
   );
+  assert.equal(paths.filter(pathValue => pathValue === "/jfs-ibk-report").length, 1);
   assert.equal(
     paths.filter(pathValue => pathValue === "/jfs-waybill-status-batch").length,
     1
