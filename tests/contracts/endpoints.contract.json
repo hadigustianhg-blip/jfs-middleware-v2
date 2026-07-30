@@ -146,6 +146,32 @@
       "verifiedByTest": true,
       "sourceAnalyzed": true
     },
+    "GET /jfs-order-list-sync": {
+      "status": "modular",
+      "classifications": ["scraper", "paginated", "masked"],
+      "queryParameters": ["start", "end"],
+      "successStatus": 200,
+      "successResponseType": "json",
+      "successTopLevelKeys": ["success", "total", "startTime", "endTime", "data"],
+      "errorStatuses": [400, 502],
+      "errorTopLevelKeys": ["success", "error"],
+      "errorVariants": [["success", "error"]],
+      "verifiedByTest": true,
+      "sourceAnalyzed": true
+    },
+    "GET /jfs-order-detail": {
+      "status": "modular",
+      "classifications": ["scraper", "security-sensitive"],
+      "queryParameters": ["id"],
+      "successStatus": 200,
+      "successResponseType": "json",
+      "successTopLevelKeys": ["success", "data"],
+      "errorStatuses": [400, 502],
+      "errorTopLevelKeys": ["success", "error"],
+      "errorVariants": [["success", "error"]],
+      "verifiedByTest": true,
+      "sourceAnalyzed": true
+    },
     "POST /jfs-waybill-status-batch": {
       "status": "modular",
       "classifications": ["scraper", "batch", "security-sensitive"],

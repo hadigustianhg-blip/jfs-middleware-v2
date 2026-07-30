@@ -124,7 +124,9 @@ test("modular router has no prefixes or duplicate endpoints", () => {
     { path: "/jfs-waybill-status-batch", methods: ["post"] },
     { path: "/jfs-aging-sign", methods: ["get"] },
     { path: "/jfs-sensitive", methods: ["get"] },
-    { path: "/jfs-inventory-detail", methods: ["get"] }
+    { path: "/jfs-inventory-detail", methods: ["get"] },
+    { path: "/jfs-order-list-sync", methods: ["get"] },
+    { path: "/jfs-order-detail", methods: ["get"] }
   ]);
   assert.equal(
     new Set(routes.map(route => `${route.methods[0]} ${route.path}`)).size,
@@ -132,7 +134,7 @@ test("modular router has no prefixes or duplicate endpoints", () => {
   );
 });
 
-test("legacy and modular registrations together expose all thirteen endpoints", () => {
+test("legacy and modular registrations together expose all fifteen endpoints", () => {
   const serverSource = fs.readFileSync(
     path.join(__dirname, "..", "server.js"),
     "utf8"
@@ -146,8 +148,8 @@ test("legacy and modular registrations together expose all thirteen endpoints", 
   })).map(route => route.path);
   const paths = [...legacyPaths, ...modularPaths];
 
-  assert.equal(paths.length, 13);
-  assert.equal(new Set(paths).size, 13);
+  assert.equal(paths.length, 15);
+  assert.equal(new Set(paths).size, 15);
   assert.ok(paths.includes("/"));
   assert.ok(paths.includes("/set-token"));
   assert.equal(paths.filter(pathValue => pathValue === "/jfs-aging-sign").length, 1);
@@ -161,4 +163,6 @@ test("legacy and modular registrations together expose all thirteen endpoints", 
     1
   );
   assert.equal(paths.filter(pathValue => pathValue === "/jfs-auth/login").length, 1);
+  assert.equal(paths.filter(pathValue => pathValue === "/jfs-order-list-sync").length, 1);
+  assert.equal(paths.filter(pathValue => pathValue === "/jfs-order-detail").length, 1);
 });

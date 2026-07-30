@@ -25,6 +25,9 @@ const {
 } = require("./inventory-detail.routes");
 const { createWaybillStatusRoutes } = require("./waybill-status.routes");
 const { createJfsAuthRoutes } = require("./jfs-auth.routes");
+const { createOrderSchedulingRoutes } = require("./order-scheduling.routes");
+const { createOrderSchedulingController } = require("../controllers/order-scheduling.controller");
+const { createOrderSchedulingService } = require("../services/order-scheduling.service");
 
 function createModularRoutes({ getAuthToken, authManager } = {}) {
   const router = express.Router();
@@ -46,6 +49,10 @@ function createModularRoutes({ getAuthToken, authManager } = {}) {
   const waybillStatusService = createWaybillStatusService({
     getAuthToken,
     refreshAuth
+  });
+  const orderSchedulingService = createOrderSchedulingService({ getAuthToken });
+  const orderSchedulingController = createOrderSchedulingController({
+    service: orderSchedulingService
   });
   const agingSignController = createAgingSignController({
     agingSignService
@@ -78,6 +85,7 @@ function createModularRoutes({ getAuthToken, authManager } = {}) {
   router.use(createInventoryDetailRoutes({
     getInventoryDetail: inventoryDetailController.getInventoryDetail
   }));
+  router.use(createOrderSchedulingRoutes(orderSchedulingController));
 
   return router;
 }
