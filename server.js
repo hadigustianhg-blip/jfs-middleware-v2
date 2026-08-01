@@ -10,6 +10,11 @@ const {
 const {
   installAxiosAuthRetry
 } = require("./src/auth/axios-auth-retry");
+const { externalRequest } = require("./src/utils/request");
+const {
+  processOrderDetailBatch
+} = require("./src/services/order-sync-detail.service");
+const { mapRepaymentType } = require("./src/mappers/cod.mapper");
 
 const app = express();
 
@@ -458,7 +463,7 @@ app.get("/jfs-cod", async (req, res) => {
 
       repaymentStatus: item.repaymentStatus || 0,
 
-      repaymentType: item.repaymentType || 0,
+      ...mapRepaymentType(item),
 
       signTime: item.signTime || "",
 
@@ -850,128 +855,25 @@ form.append(
       allOrders.length
     );
 
-    const result = [];
+    const result = await processOrderDetailBatch(allOrders, {
+      fetchDetail: async item => {
+        const response = await externalRequest({
+          url: "https://jfsgw.jtcargo.co.id/customerplatform/omsOrder/detailDispatchByLog",
+          method: "GET",
+          params: { id: item.id },
+          headers: getOmsHeaders("orderScheduling"),
+          timeoutMs: 15000,
+          retries: 1,
+          retryDelayMs: 250
+        });
 
-    for (const item of allOrders) {
-
-      try {
-
-        console.log(
-          "DETAIL REQUEST:",
-          item.id
-        );
-
-        const detail =
-          await axios.get(
-            "https://jfsgw.jtcargo.co.id/customerplatform/omsOrder/detailDispatchByLog",
-            {
-              params: {
-                id: item.id
-              },
-              headers: {
-                ...getOmsHeaders(
-                  "orderScheduling"
-                )
-              }
-            }
-          );
-
-        const d =
-          detail?.data?.data || {};
-
-        console.log(
-          "DETAIL SUCCESS:",
-          item.id
-        );
-
-       result.push({
-
-  id: d.id || "",
-
-  orderSourceName: d.orderSourceName || "",
-  orderSourceCode: d.orderSourceCode || "",
-
-  waybillId: d.waybillId || "",
-
-  customerName: d.customerName || "",
-  customerCode: d.customerCode || "",
-
-  status: d.orderStatusName || "",
-  statusCode: d.orderStatusCode || "",
-
-  senderName: d.senderName || "",
-  senderCompany: d.senderCompany || "",
-  senderPhone: d.senderMobilePhone || "",
-  senderProvince: d.senderProvinceName || "",
-  senderCity: d.senderCityName || "",
-  senderArea: d.senderAreaName || "",
-  senderAddress: d.senderDetailedAddress || "",
-
-  receiverName: d.receiverName || "",
-  receiverPhone: d.receiverMobilePhone || "",
-  receiverProvince: d.receiverProvinceName || "",
-  receiverCity: d.receiverCityName || "",
-  receiverArea: d.receiverAreaName || "",
-  receiverAddress: d.receiverDetailedAddress || "",
-
-  goodsName: d.goodsName || "",
-  goodsType: d.goodsTypeName || "",
-
-  weight: d.packageTotalWeight || 0,
-  packageNumber: d.packageNumber || 0,
-
-  expressType: d.expressTypeName || "",
-  expressTypeCode: d.expressTypeCode || "",
-
-  paymentMode: d.paymentModeName || "",
-
-  sendName: d.sendName || "",
-  sendCode: d.sendCode || "",
-
-  pickNetwork: d.pickNetworkName || "",
-  pickNetworkCode: d.pickNetworkCode || "",
-
-  proxyArea: d.proxyAreaName || "",
-  proxyAreaCode: d.proxyAreaCode || "",
-
-  customerOrderTime: d.customerOrderTime || "",
-  dispatchNetworkTime: d.dispatchNetworkTime || "",
-  inputTime: d.inputTime || "",
-
-  syncTime: moment()
-    .tz("Asia/Jakarta")
-    .format("YYYY-MM-DD HH:mm:ss")
-
-});
-
-      } catch (err) {
-
-        console.log(
-          "DETAIL ERROR:",
-          item.id
-        );
-
-        console.log(
-          "STATUS:",
-          err.response?.status
-        );
-
-        console.log(
-          "DATA:",
-          JSON.stringify(
-            err.response?.data,
-            null,
-            2
-          )
-        );
-
-      }
-
-      await new Promise(r =>
-        setTimeout(r, 1500)
-      );
-
-    }
+        return response?.data?.data || {};
+      },
+      getSyncTime: () =>
+        moment()
+          .tz("Asia/Jakarta")
+          .format("YYYY-MM-DD HH:mm:ss")
+    });
 
     res.json({
 
