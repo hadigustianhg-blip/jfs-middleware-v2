@@ -23,11 +23,19 @@ function buildIbkHeaders(authToken) {
   };
 }
 
-function buildIbkPayload({ current, size, startTime, endTime }) {
+const { getOutletConfig } = require("../config/jfs-outlet-config");
+
+function buildIbkPayload({
+  current,
+  size,
+  startTime,
+  endTime,
+  financialCenterId = getOutletConfig().financeId
+}) {
   return {
     current,
     size,
-    financialCenterId: 183,
+    financialCenterId,
     networkId: 2015,
     timeType: 1,
     searchType: 1,

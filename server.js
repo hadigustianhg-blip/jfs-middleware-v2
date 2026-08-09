@@ -15,6 +15,7 @@ const {
   processOrderDetailBatch
 } = require("./src/services/order-sync-detail.service");
 const { mapRepaymentType } = require("./src/mappers/cod.mapper");
+const { getOutletConfig } = require("./src/config/jfs-outlet-config");
 
 const app = express();
 
@@ -105,12 +106,13 @@ app.get("/jfs-pickup", async (req, res) => {
 
     while (hasMore) {
       const form = new FormData();
+      const outletConfig = getOutletConfig();
 
       form.append("current", current);
       form.append("size", 100);
 
-      form.append("pickFinanceCode", "BDO000");
-      form.append("pickNetworkCode", "SUM001A");
+      form.append("pickFinanceCode", outletConfig.financeCode);
+      form.append("pickNetworkCode", outletConfig.networkCode);
 
       form.append("isVoid", "0");
 
@@ -205,15 +207,16 @@ app.get("/jfs-dispatch", async (req, res) => {
     const maxPage = 20;
 
     while (hasMore && current <= maxPage) {
+      const outletConfig = getOutletConfig();
 
       const payload = {
         current: current,
         size: 100,
 
-        oneNetwork: "BDO000",
+        oneNetwork: outletConfig.financeCode,
 
-        dispatchFinanceCode: "BDO000",
-        dispatchFinanceId: 183,
+        dispatchFinanceCode: outletConfig.financeCode,
+        dispatchFinanceId: outletConfig.financeId,
 
         searchTimeType: 1,
 
@@ -357,6 +360,7 @@ app.get("/jfs-cod", async (req, res) => {
     const maxPage = 20;
 
     while (hasMore && current <= maxPage) {
+      const outletConfig = getOutletConfig();
 
       // =========================
       // PAYLOAD
@@ -365,9 +369,9 @@ app.get("/jfs-cod", async (req, res) => {
         current: current,
         size: 100,
 
-        revenueNetworkCode: "SUM001A",
+        revenueNetworkCode: outletConfig.networkCode,
 
-        financeCenterId: "BDO000",
+        financeCenterId: outletConfig.financeCode,
 
         startTime: `${date} 00:00:00`,
         endTime: `${date} 23:59:59`,
@@ -541,6 +545,7 @@ async function legacyIbkReport(req, res) {
     const maxPage = 20;
 
     while (hasMore && current <= maxPage) {
+      const outletConfig = getOutletConfig();
 
       // =========================
       // PAYLOAD
@@ -551,7 +556,7 @@ async function legacyIbkReport(req, res) {
 
         size: 100,
 
-        financialCenterId: 183,
+        financialCenterId: outletConfig.financeId,
 
         networkId: 2015,
 
