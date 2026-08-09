@@ -11,6 +11,19 @@ const {
   assertExpectedNetworkCode,
   JfsNetworkMismatchError
 } = require("./network-validation");
+const {
+  bootstrapOutletContexts,
+  parseContextDefinitionsFromEnv,
+  ContextBootstrapError
+} = require("./trusted-context-bootstrap");
+const {
+  resolveTrustedOutletContext,
+  extractContextKeyFromHeaders,
+  resolveContextFromRequest,
+  ContextResolverError,
+  CONTEXT_KEY_HEADER,
+  CALLER_AUTH_HEADER
+} = require("./trusted-context-resolver");
 
 module.exports = {
   createJfsOutletContext,
@@ -20,5 +33,14 @@ module.exports = {
   OutletRegistryError,
   createJfsHttpClient,
   assertExpectedNetworkCode,
-  JfsNetworkMismatchError
+  JfsNetworkMismatchError,
+  bootstrapOutletContexts,
+  parseContextDefinitionsFromEnv,
+  ContextBootstrapError,
+  resolveTrustedOutletContext,
+  extractContextKeyFromHeaders,
+  resolveContextFromRequest,
+  ContextResolverError,
+  CONTEXT_KEY_HEADER,
+  CALLER_AUTH_HEADER
 };
