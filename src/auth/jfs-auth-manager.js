@@ -39,12 +39,17 @@ function createJfsAuthManager({
   onToken = () => {}
 } = {}) {
   let cachedToken = initialToken;
+  let cachedNetworkCode = "";
   let credentials;
   let refreshPromise;
 
   function setToken(token) {
     cachedToken = token || "";
     onToken(cachedToken);
+  }
+
+  function setNetworkCode(code) {
+    cachedNetworkCode = code || "";
   }
 
   async function performLogin() {
@@ -72,6 +77,7 @@ function createJfsAuthManager({
       }
 
       setToken(profile.token);
+      setNetworkCode(profile.networkCode);
       return {
         token: profile.token,
         networkCode: profile.networkCode ?? "",
@@ -113,10 +119,12 @@ function createJfsAuthManager({
 
   return {
     getToken: () => cachedToken,
+    getNetworkCode: () => cachedNetworkCode,
     hasCredentials: () => Boolean(credentials),
     loginWithCredentials,
     refreshLogin,
-    setToken
+    setToken,
+    setNetworkCode
   };
 }
 
