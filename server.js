@@ -32,10 +32,14 @@ const authManager = createJfsAuthManager({
 });
 installAxiosAuthRetry(axios, authManager);
 
+const { initializeMultiOutletRuntime } = require("./src/context/runtime-bootstrap");
+
 app.use(createModularRoutes({
   getAuthToken: () => AUTH_TOKEN,
   authManager
 }));
+
+initializeMultiOutletRuntime(app);
 
 // ================= ROOT =================
 app.get("/", (req, res) => {

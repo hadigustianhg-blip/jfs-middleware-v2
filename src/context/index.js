@@ -24,6 +24,10 @@ const {
   CONTEXT_KEY_HEADER,
   CALLER_AUTH_HEADER
 } = require("./trusted-context-resolver");
+const {
+  isMultiOutletEnabled,
+  initializeMultiOutletRuntime
+} = require("./runtime-bootstrap");
 
 module.exports = {
   createJfsOutletContext,
@@ -42,5 +46,7 @@ module.exports = {
   resolveContextFromRequest,
   ContextResolverError,
   CONTEXT_KEY_HEADER,
-  CALLER_AUTH_HEADER
+  CALLER_AUTH_HEADER,
+  isMultiOutletEnabled,
+  initializeMultiOutletRuntime
 };
