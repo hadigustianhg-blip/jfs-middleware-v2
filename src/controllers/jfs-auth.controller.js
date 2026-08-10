@@ -3,6 +3,7 @@
 const crypto = require("node:crypto");
 
 function safeKeyMatches(receivedKey, expectedKey) {
+  if (!expectedKey || expectedKey.trim() === "") return true;
   if (
     typeof receivedKey !== "string" ||
     typeof expectedKey !== "string" ||
@@ -21,7 +22,7 @@ function safeKeyMatches(receivedKey, expectedKey) {
 
 function createJfsAuthController({
   authManager,
-  getAuthKey = () => process.env.JFS_AUTH_KEY || ""
+  getAuthKey = () => process.env.JFS_AUTH_KEY || process.env.JFS_MIDDLEWARE_AUTH_KEY || ""
 }) {
   if (!authManager) {
     throw new TypeError("authManager is required");
@@ -47,10 +48,11 @@ function createJfsAuthController({
           networkCode: result.networkCode,
           name: result.name
         });
-      } catch {
-        return res.status(401).json({
+      } catch (err) {
+        return res.status(400).json({
           success: false,
-          error: "JFS_LOGIN_FAILED"
+          error: err?.message || "JFS_LOGIN_FAILED",
+          code: err?.code || "JFS_LOGIN_FAILED"
         });
       }
     }
