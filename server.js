@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
@@ -26,10 +27,14 @@ const authManager = createJfsAuthManager({
 });
 installAxiosAuthRetry(axios, authManager);
 
+const { createInternalMultiOutletRouter } = require("./src/routes/internal-multi-outlet.routes");
+
 app.use(createModularRoutes({
   getAuthToken: () => AUTH_TOKEN,
   authManager
 }));
+
+app.use(createInternalMultiOutletRouter());
 
 // ================= ROOT =================
 app.get("/", (req, res) => {
