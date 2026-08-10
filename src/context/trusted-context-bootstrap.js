@@ -4,6 +4,7 @@ const { createJfsOutletContext } = require("./jfs-outlet-context");
 const { createOutletContextRegistry } = require("./outlet-context-registry");
 const { createJfsAuthManager } = require("../auth/jfs-auth-manager");
 const { createJfsHttpClient } = require("./jfs-http-client");
+const { resolveContextCredential } = require("./credential-resolver");
 
 class ContextBootstrapError extends Error {
   constructor(message, code = "INVALID_BOOTSTRAP_DEFINITION", status = 400) {
@@ -36,13 +37,15 @@ function parseContextDefinitionsFromEnv(envValue = process.env.JFS_CONTEXTS_JSON
 
 /**
  * Bootstraps isolated JfsOutletContext instances from definitions into an OutletContextRegistry.
- * Rejects duplicates, validates definitions, creates per-context authManager and httpClient.
+ * Resolves secret tokens via resolveContextCredential using definition.credentialRef.
  */
 function bootstrapOutletContexts(options = {}) {
   const definitions = options.definitions || parseContextDefinitionsFromEnv(options.envValue);
   const registry = options.registry || createOutletContextRegistry();
   const authManagerFactory = options.createAuthManager || createJfsAuthManager;
   const httpClientFactory = options.createHttpClient || createJfsHttpClient;
+  const env = options.env || process.env;
+  const allowInitialTokenFallback = options.allowInitialTokenFallback ?? false;
 
   if (!Array.isArray(definitions)) {
     throw new ContextBootstrapError("definitions must be an array", "INVALID_DEFINITIONS");
@@ -83,6 +86,23 @@ function bootstrapOutletContexts(options = {}) {
       );
     }
 
+    // Resolve Secret Token via CredentialRef
+    let initialToken = "";
+    if (def.credentialRef) {
+      try {
+        initialToken = resolveContextCredential(def.credentialRef, env);
+      } catch (err) {
+        throw new ContextBootstrapError(err.message, err.code, err.status);
+      }
+    } else if (def.initialToken) {
+      initialToken = String(def.initialToken).trim();
+    } else {
+      throw new ContextBootstrapError(
+        `Context definition for key "${key}" must contain a valid credentialRef`,
+        "MISSING_CREDENTIAL_REFERENCE"
+      );
+    }
+
     const config = {
       networkCode,
       financeCode,
@@ -91,7 +111,7 @@ function bootstrapOutletContexts(options = {}) {
     };
 
     const authManager = authManagerFactory({
-      initialToken: def.initialToken || ""
+      initialToken
     });
 
     const httpClient = httpClientFactory({

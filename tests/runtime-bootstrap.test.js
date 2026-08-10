@@ -173,8 +173,8 @@ test("TEST K: flag=true with missing auth key fails startup", () => {
 test("TEST L: Duplicate context key fails startup", () => {
   const app = express();
   const duplicateDefs = [
-    { key: "dup-key", tenantId: "t1", outletId: "o1", outletCode: "s1", networkCode: "s1", financeCode: "f1", financeId: 1, scanSiteCode: "s1" },
-    { key: "dup-key", tenantId: "t2", outletId: "o2", outletCode: "s2", networkCode: "s2", financeCode: "f2", financeId: 2, scanSiteCode: "s2" }
+    { key: "dup-key", tenantId: "t1", outletId: "o1", outletCode: "s1", networkCode: "s1", financeCode: "f1", financeId: 1, scanSiteCode: "s1", initialToken: "TK1" },
+    { key: "dup-key", tenantId: "t2", outletId: "o2", outletCode: "s2", networkCode: "s2", financeCode: "f2", financeId: 2, scanSiteCode: "s2", initialToken: "TK2" }
   ];
   const env = {
     JFS_MULTI_OUTLET_INTERNAL_ENABLED: "true",

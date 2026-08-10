@@ -28,6 +28,11 @@ const {
   isMultiOutletEnabled,
   initializeMultiOutletRuntime
 } = require("./runtime-bootstrap");
+const {
+  resolveContextCredential,
+  CredentialResolverError,
+  ENV_PREFIX
+} = require("./credential-resolver");
 
 module.exports = {
   createJfsOutletContext,
@@ -48,5 +53,8 @@ module.exports = {
   CONTEXT_KEY_HEADER,
   CALLER_AUTH_HEADER,
   isMultiOutletEnabled,
-  initializeMultiOutletRuntime
+  initializeMultiOutletRuntime,
+  resolveContextCredential,
+  CredentialResolverError,
+  ENV_PREFIX
 };

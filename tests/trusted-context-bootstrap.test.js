@@ -98,7 +98,8 @@ test("TEST F: Duplicate key during bootstrap is rejected", () => {
       networkCode: "SUM001A",
       financeCode: "BDO000",
       financeId: 183,
-      scanSiteCode: "SUM001A"
+      scanSiteCode: "SUM001A",
+      initialToken: "TOKEN_A"
     },
     {
       key: "duplicate-key-1",
@@ -108,7 +109,8 @@ test("TEST F: Duplicate key during bootstrap is rejected", () => {
       networkCode: "SUM002A",
       financeCode: "JKT999",
       financeId: 555,
-      scanSiteCode: "SUM002A"
+      scanSiteCode: "SUM002A",
+      initialToken: "TOKEN_B"
     }
   ];
 
@@ -131,7 +133,8 @@ test("TEST G & H: Context A and B have distinct authManager and httpClient insta
       networkCode: "S1",
       financeCode: "F1",
       financeId: 1,
-      scanSiteCode: "S1"
+      scanSiteCode: "S1",
+      initialToken: "TOKEN_A"
     },
     {
       key: "key-b",
@@ -141,7 +144,8 @@ test("TEST G & H: Context A and B have distinct authManager and httpClient insta
       networkCode: "S2",
       financeCode: "F2",
       financeId: 2,
-      scanSiteCode: "S2"
+      scanSiteCode: "S2",
+      initialToken: "TOKEN_B"
     }
   ];
 
@@ -175,8 +179,8 @@ test("TEST I: Concurrent resolve A+B has zero state bleed", async () => {
 
 test("TEST J & K: Header resolver reads X-JFS-Context-Key and IGNORES query parameters", () => {
   const definitions = [
-    { key: "trusted-key-a", tenantId: "T1", outletId: "O1", outletCode: "SUM001A", networkCode: "SUM001A", financeCode: "F1", financeId: 1, scanSiteCode: "SUM001A" },
-    { key: "trusted-key-b", tenantId: "T1", outletId: "O2", outletCode: "SUM002A", networkCode: "SUM002A", financeCode: "F2", financeId: 2, scanSiteCode: "SUM002A" }
+    { key: "trusted-key-a", tenantId: "T1", outletId: "O1", outletCode: "SUM001A", networkCode: "SUM001A", financeCode: "F1", financeId: 1, scanSiteCode: "SUM001A", initialToken: "TA" },
+    { key: "trusted-key-b", tenantId: "T1", outletId: "O2", outletCode: "SUM002A", networkCode: "SUM002A", financeCode: "F2", financeId: 2, scanSiteCode: "SUM002A", initialToken: "TB" }
   ];
 
   const { registry } = bootstrapOutletContexts({ definitions });

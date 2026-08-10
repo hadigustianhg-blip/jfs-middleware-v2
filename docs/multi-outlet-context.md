@@ -4,6 +4,34 @@
 This document specifies the multi-outlet isolation architecture for the JFS Middleware.
 The objective is to enable multi-tenant and multi-outlet scraping where each outlet has an isolated context (configuration, credentials, HTTP client, and token refresh manager).
 
+## Credential Architecture (`credentialRef` & Server Secret Resolver)
+To ensure strict security and prevent credential leakage, **`JFS_CONTEXTS_JSON` MUST NOT contain secret tokens or passwords**.
+Instead, context definitions specify a controlled `credentialRef`:
+
+```json
+{
+  "key": "staging-sum001a",
+  "tenantId": "tenant-a",
+  "outletId": "outlet-a",
+  "outletCode": "SUM001A",
+  "networkCode": "SUM001A",
+  "financeCode": "BDO000",
+  "financeId": 183,
+  "scanSiteCode": "SUM001A",
+  "credentialRef": "SUM001A"
+}
+```
+
+### Server-Side Secret Resolution
+1. `credentialRef` is validated server-side (alphanumeric, underscore, hyphen only).
+2. The secret token is resolved using controlled prefix `JFS_CONTEXT_TOKEN_<CREDENTIAL_REF>` from environment variables.
+   Example: `credentialRef: "SUM001A"` $\rightarrow$ reads `JFS_CONTEXT_TOKEN_SUM001A`.
+3. Arbitrary environment variable name lookups (e.g. `credentialRef: "DATABASE_URL"`) are strictly prevented by the controlled prefix structure.
+4. Resolved tokens are passed directly to the context's private `authManager` and are **NEVER** stored on the context or definition object.
+
+### Future Database Integration Note
+This environment-backed credential resolution is a **transitional Phase 0 architecture**. In future phases, `resolveContextCredential` will be extended to fetch encrypted credentials directly from NEXTGEN PostgreSQL database (`IntegrationCredential` table).
+
 ## Feature Flag & Opt-In Runtime Bootstrap
 The multi-outlet execution path is strictly **OPT-IN** and disabled by default.
 
@@ -11,6 +39,7 @@ The multi-outlet execution path is strictly **OPT-IN** and disabled by default.
 - **`JFS_MULTI_OUTLET_INTERNAL_ENABLED`**: Boolean flag (`false` by default). Set to `true`, `1`, or `yes` to enable.
 - **`JFS_AUTH_KEY`**: Secret internal caller authentication key required for Layer 1 security.
 - **`JFS_CONTEXTS_JSON`**: Trusted JSON array defining outlet contexts and internal keys.
+- **`JFS_CONTEXT_TOKEN_<CREDENTIAL_REF>`**: Controlled environment variable containing the secret token for each `credentialRef`.
 
 ### Default OFF Behavior
 When `JFS_MULTI_OUTLET_INTERNAL_ENABLED=false` (or missing):
@@ -48,12 +77,6 @@ Context resolution is strictly enforced on the server-side:
 2. **HTTP Client Isolation**: `httpClient` instances are separate `axios.create()` instances with isolated interceptors.
 3. **No Global State Leakage**: New contexts do not write to mutable global variables.
 4. **Concurrency Safety**: Asynchronous requests across multiple contexts execute safely in parallel via `Promise.all`.
-
-## Staging & Production Deployment Guidelines
-> [!WARNING]
-> DO NOT commit real production credentials or tokens to version control.
-> Test fixtures must strictly use placeholder tokens (e.g. `TEST_TOKEN_A`).
-> When enabling in Staging or Production, inject `JFS_CONTEXTS_JSON` securely via environment secrets.
 
 ## Legacy SUM001A Compatibility
 - The legacy SUM001A production path (`process.env.AUTH_TOKEN`, global `axios`, `/set-token`) remains intact for backward compatibility.
