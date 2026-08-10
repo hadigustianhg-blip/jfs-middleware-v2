@@ -43,14 +43,23 @@ function createInternalMultiOutletRouter({
 
   const operations = [
     { path: "/pickup", op: "PICKUP" },
+    { path: "/jfs-pickup", op: "PICKUP" },
     { path: "/dispatch", op: "DISPATCH" },
+    { path: "/jfs-dispatch", op: "DISPATCH" },
     { path: "/cod", op: "COD" },
+    { path: "/jfs-cod", op: "COD" },
     { path: "/ibk", op: "IBK" },
+    { path: "/jfs-ibk", op: "IBK" },
     { path: "/oms", op: "OMS" },
+    { path: "/jfs-order-sync", op: "OMS" },
     { path: "/inventory", op: "INVENTORY" },
+    { path: "/jfs-inventory-detail", op: "INVENTORY" },
     { path: "/aging-sign", op: "AGING_SIGN" },
+    { path: "/jfs-aging-sign", op: "AGING_SIGN" },
     { path: "/waybill-status", op: "WAYBILL_STATUS" },
-    { path: "/sender-detail", op: "SENDER_DETAIL" }
+    { path: "/jfs-waybill-status", op: "WAYBILL_STATUS" },
+    { path: "/sender-detail", op: "SENDER_DETAIL" },
+    { path: "/jfs-sender-detail", op: "SENDER_DETAIL" }
   ];
 
   for (const { path: routePath, op } of operations) {

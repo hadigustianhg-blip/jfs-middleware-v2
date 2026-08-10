@@ -46,10 +46,26 @@ function createJfsOutletContext({
 
         try {
           const loginUrl = `${jfsBaseUrl}/basicdata/login`;
+          const passwordHash = /^[a-f0-9]{32}$/i.test(password)
+            ? password.toLowerCase()
+            : require("node:crypto").createHash("md5").update(password, "utf8").digest("hex").toLowerCase();
           const res = await resolvedFetcher(loginUrl, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            data: { account, password }
+            headers: {
+              "Accept": "application/json, text/plain, */*",
+              "Content-Type": "application/json;charset=UTF-8",
+              "Lang": "ID",
+              "Langtype": "ID",
+              "Routename": "login",
+              "User-Agent": "Mozilla/5.0"
+            },
+            data: {
+              account,
+              password: passwordHash,
+              captchaToken: "",
+              deviceNo: require("node:crypto").randomUUID(),
+              countryId: "1"
+            }
           });
 
           if (res.status !== 200 || !res.data || res.data.code !== 0 || !res.data.data?.token) {
