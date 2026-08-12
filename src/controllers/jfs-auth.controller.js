@@ -3,7 +3,7 @@
 const crypto = require("node:crypto");
 
 function safeKeyMatches(receivedKey, expectedKey) {
-  if (!expectedKey || expectedKey.trim() === "") return true;
+  if (!expectedKey || expectedKey.trim() === "") return false;
   if (
     typeof receivedKey !== "string" ||
     typeof expectedKey !== "string" ||
@@ -48,11 +48,10 @@ function createJfsAuthController({
           networkCode: result.networkCode,
           name: result.name
         });
-      } catch (err) {
-        return res.status(400).json({
+      } catch {
+        return res.status(401).json({
           success: false,
-          error: err?.message || "JFS_LOGIN_FAILED",
-          code: err?.code || "JFS_LOGIN_FAILED"
+          error: "JFS_LOGIN_FAILED"
         });
       }
     }
