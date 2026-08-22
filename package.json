@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test tests/aging-sign.scraper.test.js tests/contracts.test.js tests/controllers.test.js tests/date.test.js tests/entry-point.test.js tests/env.test.js tests/fixture-safety.test.js tests/inventory-detail.test.js tests/jfs-auth.test.js tests/logger.test.js tests/multi-outlet-context.test.js tests/order-scheduling.test.js tests/pagination.test.js tests/request.test.js tests/response.test.js tests/routes.test.js tests/sensitive.scraper.test.js tests/services.test.js tests/waybill-status.test.js",
+    "test": "node --test tests/aging-sign.scraper.test.js tests/contracts.test.js tests/controllers.test.js tests/date.test.js tests/entry-point.test.js tests/env.test.js tests/fixture-safety.test.js tests/inventory-detail.test.js tests/jfs-auth.test.js tests/logger.test.js tests/multi-outlet-context.test.js tests/oms-scheduling.test.js tests/order-scheduling.test.js tests/pagination.test.js tests/request.test.js tests/response.test.js tests/routes.test.js tests/sensitive.scraper.test.js tests/services.test.js tests/waybill-status.test.js",
     "check": "node --check server.js",
     "test:contracts": "node --test tests/contracts.test.js",
     "test:safety": "node --test tests/fixture-safety.test.js"

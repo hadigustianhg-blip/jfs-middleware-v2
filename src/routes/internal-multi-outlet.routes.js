@@ -52,6 +52,8 @@ function createInternalMultiOutletRouter({
     { path: "/jfs-ibk", op: "IBK" },
     { path: "/oms", op: "OMS" },
     { path: "/jfs-order-sync", op: "OMS" },
+    { path: "/oms-scheduling-list", op: "OMS_SCHEDULING_LIST" },
+    { path: "/oms-scheduling-detail", op: "OMS_SCHEDULING_DETAIL" },
     { path: "/inventory", op: "INVENTORY" },
     { path: "/jfs-inventory-detail", op: "INVENTORY" },
     { path: "/aging-sign", op: "AGING_SIGN" },
@@ -65,6 +67,9 @@ function createInternalMultiOutletRouter({
   for (const { path: routePath, op } of operations) {
     const fullPath = routePath;
     router.post(fullPath, authMiddleware, async (req, res) => {
+      if (op === "OMS_SCHEDULING_DETAIL") {
+        res.set("Cache-Control", "private, no-store, max-age=0");
+      }
       try {
         const result = await executeMultiOutletScraper(req.outletContext, op, req.body || {});
         return res.json({

@@ -8,8 +8,29 @@ const { fetchAgingSignReport } = require("./aging-sign.service");
 const { fetchWaybillStatusBatch } = require("./waybill-status.service");
 const { scrapeOrderList } = require("../scrapers/order-scheduling.scraper");
 const { scrapeSensitiveDetail } = require("../scrapers/sensitive.scraper");
+const {
+  scrapeOmsSchedulingDetail,
+  scrapeOmsSchedulingList
+} = require("../scrapers/oms-scheduling.scraper");
 
-async function executeMultiOutletScraper(context, operation, options = {}) {
+function isScopedUnauthorized(error) {
+  return error?.code === "UNAUTHORIZED" || error?.status === 401 || error?.status === 403 ||
+    error?.response?.status === 401 || error?.response?.status === 403;
+}
+
+async function executeWithScopedAuth(context, operation) {
+  let token = await context.authManager.getAuthToken();
+  try {
+    return await operation(token);
+  } catch (error) {
+    if (!isScopedUnauthorized(error)) throw error;
+    context.authManager.clearToken();
+    token = await context.authManager.refreshLogin();
+    return operation(token);
+  }
+}
+
+async function executeMultiOutletScraper(context, operation, options = {}, dependencies = {}) {
   const token = await context.authManager.getAuthToken();
   const config = context.config;
 
@@ -285,6 +306,16 @@ async function executeMultiOutletScraper(context, operation, options = {}) {
       }
     }
 
+    case "OMS_SCHEDULING_LIST":
+      return executeWithScopedAuth(context, scopedToken =>
+        scrapeOmsSchedulingList(options, scopedToken, dependencies.requestFn)
+      );
+
+    case "OMS_SCHEDULING_DETAIL":
+      return executeWithScopedAuth(context, scopedToken =>
+        scrapeOmsSchedulingDetail(options, scopedToken, dependencies.requestFn)
+      );
+
     case "INVENTORY":
       return fetchInventoryDetail({
         token,
@@ -332,5 +363,6 @@ async function executeMultiOutletScraper(context, operation, options = {}) {
 }
 
 module.exports = {
-  executeMultiOutletScraper
+  executeMultiOutletScraper,
+  executeWithScopedAuth
 };
