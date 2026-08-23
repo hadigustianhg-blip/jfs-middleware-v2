@@ -55,6 +55,80 @@ test("Single-flight refresh mutex in JfsOutletContext triggers exactly 1 upstrea
   }
 });
 
+for (const applicationCode of [0, 1]) {
+  test(`scoped login accepts application code ${applicationCode} when a valid token is present`, async () => {
+    const ctx = createJfsOutletContext({
+      tenantId: "t-login",
+      outletId: `o-code-${applicationCode}`,
+      outletCode: "DEV001",
+      account: "TEST_ACCOUNT",
+      password: "TEST_PASSWORD",
+      fetcher: async () => ({
+        status: 200,
+        data: { code: applicationCode, data: { token: `TOKEN_${applicationCode}`, networkCode: "TEST_NET" } }
+      })
+    });
+
+    assert.equal(await ctx.authManager.getAuthToken(), `TOKEN_${applicationCode}`);
+    assert.equal(ctx.getState().hasToken, true);
+  });
+}
+
+for (const applicationCode of [1, 401, 405]) {
+  test(`scoped login rejects application code ${applicationCode} when token is missing`, async () => {
+    const ctx = createJfsOutletContext({
+      tenantId: "t-login",
+      outletId: `o-missing-${applicationCode}`,
+      outletCode: "DEV001",
+      account: "TEST_ACCOUNT",
+      password: "TEST_PASSWORD",
+      fetcher: async () => ({ status: 200, data: { code: applicationCode, data: {} } })
+    });
+
+    await assert.rejects(ctx.authManager.getAuthToken(), /JFS_LOGIN_FAILED/);
+    assert.equal(ctx.getState().hasToken, false);
+  });
+}
+
+test("scoped login rejects malformed and empty-token responses", async () => {
+  for (const data of [null, {}, { data: { token: "" } }, { data: { token: "   " } }, { data: { token: {} } }]) {
+    const ctx = createJfsOutletContext({
+      tenantId: "t-login",
+      outletId: "o-malformed",
+      outletCode: "DEV001",
+      account: "TEST_ACCOUNT",
+      password: "TEST_PASSWORD",
+      fetcher: async () => ({ status: 200, data })
+    });
+    await assert.rejects(ctx.authManager.getAuthToken(), /JFS_LOGIN_FAILED/);
+    assert.equal(ctx.getState().hasToken, false);
+  }
+});
+
+test("scoped login stores a token only in its own outlet context without global fallback", async () => {
+  const originalGlobalToken = process.env.AUTH_TOKEN;
+  process.env.AUTH_TOKEN = "GLOBAL_TOKEN_MUST_NOT_BE_USED";
+  const ctxA = createJfsOutletContext({
+    tenantId: "t-a", outletId: "o-a", outletCode: "DEV001",
+    account: "ACCOUNT_A", password: "PASSWORD_A",
+    fetcher: async () => ({ status: 200, data: { code: 1, data: { token: "TOKEN_A" } } })
+  });
+  const ctxB = createJfsOutletContext({
+    tenantId: "t-b", outletId: "o-b", outletCode: "DEV002",
+    account: "ACCOUNT_B", password: "PASSWORD_B",
+    fetcher: async () => ({ status: 200, data: { code: 405, data: {} } })
+  });
+
+  assert.equal(await ctxA.authManager.getAuthToken(), "TOKEN_A");
+  await assert.rejects(ctxB.authManager.getAuthToken(), /JFS_LOGIN_FAILED/);
+  assert.equal(ctxA.getState().hasToken, true);
+  assert.equal(ctxB.getState().hasToken, false);
+  assert.notEqual(await ctxA.authManager.getAuthToken(), process.env.AUTH_TOKEN);
+
+  if (originalGlobalToken === undefined) delete process.env.AUTH_TOKEN;
+  else process.env.AUTH_TOKEN = originalGlobalToken;
+});
+
 test("Context A and Context B are completely isolated", async () => {
   let loginCountA = 0;
   let loginCountB = 0;

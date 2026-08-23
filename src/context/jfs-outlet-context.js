@@ -68,13 +68,15 @@ function createJfsOutletContext({
             }
           });
 
-          if (res.status !== 200 || !res.data || res.data.code !== 0 || !res.data.data?.token) {
+          const token = res.data?.data?.token;
+          const validToken = typeof token === "string" && token.trim().length > 0;
+          if (res.status !== 200 || !validToken) {
             const errMessage = res.data?.msg || `JFS login failed with status ${res.status}`;
             lastFailure = { occurredAt: new Date(), message: errMessage };
             throw new Error(`JFS_LOGIN_FAILED: ${errMessage}`);
           }
 
-          currentToken = res.data.data.token;
+          currentToken = token;
           lastLoginAt = new Date();
           lastFailure = null;
           return currentToken;

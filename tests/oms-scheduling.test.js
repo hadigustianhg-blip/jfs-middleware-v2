@@ -300,6 +300,35 @@ test("application code 401 refreshes OMS detail without global token fallback", 
   else process.env.AUTH_TOKEN = originalGlobalToken;
 });
 
+test("OMS scheduling list proceeds after scoped login returns code 1 with a valid token", async () => {
+  let loginCalls = 0;
+  let omsCalls = 0;
+  const context = require("../src/context/jfs-outlet-context").createJfsOutletContext({
+    tenantId: "tenant-code-one",
+    outletId: "outlet-code-one",
+    outletCode: "DEV001",
+    networkCode: "TEST_NET",
+    account: "TEST_ACCOUNT",
+    password: "TEST_PASSWORD",
+    fetcher: async url => {
+      assert.match(url, /basicdata\/login$/);
+      loginCalls += 1;
+      return { status: 200, data: { code: 1, data: { token: "CODE_ONE_TOKEN", networkCode: "TEST_NET" } } };
+    }
+  });
+  const result = await executeMultiOutletScraper(context, "OMS_SCHEDULING_LIST", listInput, {
+    requestFn: async options => {
+      omsCalls += 1;
+      assert.equal(options.headers.Authtoken, "CODE_ONE_TOKEN");
+      return { status: 200, data: { code: 0, data: { records: [], total: 0, pages: 0 } } };
+    }
+  });
+
+  assert.equal(loginCalls, 1);
+  assert.equal(omsCalls, 1);
+  assert.deepEqual(result, { records: [], total: 0, pagesFetched: 1 });
+});
+
 test("scoped routes are protected and registered independently from legacy routes", () => {
   const router = createInternalMultiOutletRouter({ getAuthKey: () => "KEY" });
   const paths = router.stack.filter(layer => layer.route).map(layer => layer.route.path);
