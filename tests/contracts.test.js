@@ -28,7 +28,7 @@ test("contract manifest is valid JSON without duplicate endpoint entries", () =>
 
   assert.equal(rawEndpointEntries.length, names.length);
   assert.equal(new Set(names).size, names.length);
-  assert.equal(names.length, 16);
+  assert.equal(names.length, 18);
 });
 
 test("contract manifest records every source endpoint", () => {

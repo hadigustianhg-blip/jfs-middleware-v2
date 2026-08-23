@@ -1,6 +1,17 @@
 "use strict";
 
 const axios = require("axios");
+const crypto = require("node:crypto");
+const { externalRequest } = require("../utils/request");
+
+const DEVICE_NAMESPACE = "nextgen:jfs:scoped-device:v1";
+
+function stableDeviceNo(tenantId, outletId, provider = "JFS") {
+  const digest = crypto.createHash("sha256")
+    .update(`${DEVICE_NAMESPACE}:${tenantId}:${outletId}:${provider}`)
+    .digest("hex");
+  return `${digest.slice(0, 8)}-${digest.slice(8, 12)}-5${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
+}
 
 function createJfsOutletContext({
   tenantId,
@@ -24,9 +35,15 @@ function createJfsOutletContext({
   let lastLoginAt = initialToken ? new Date() : null;
   let lastFailure = null;
   let refreshPromise = null;
+  let scopedAccount = account;
+  let scopedPassword = password;
+  let lastNetworkCode = networkCode || null;
+  let lastNetworkName = null;
+  const deviceNo = stableDeviceNo(tenantId, outletId);
+  const axiosClient = axios.create();
 
   const resolvedFetcher = fetcher || (async (url, options) => {
-    const response = await axios({ url, ...options });
+    const response = await axiosClient({ url, ...options });
     return { status: response.status, data: response.data, headers: response.headers };
   });
 
@@ -40,15 +57,15 @@ function createJfsOutletContext({
       if (refreshPromise) return refreshPromise;
 
       refreshPromise = (async () => {
-        if (!account || !password) {
+        if (!scopedAccount || !scopedPassword) {
           throw new Error(`JFS credentials not provided for outlet ${outletCode}`);
         }
 
         try {
           const loginUrl = `${jfsBaseUrl}/basicdata/login`;
-          const passwordHash = /^[a-f0-9]{32}$/i.test(password)
-            ? password.toLowerCase()
-            : require("node:crypto").createHash("md5").update(password, "utf8").digest("hex").toLowerCase();
+          const passwordHash = /^[a-f0-9]{32}$/i.test(scopedPassword)
+            ? scopedPassword.toLowerCase()
+            : crypto.createHash("md5").update(scopedPassword, "utf8").digest("hex").toLowerCase();
           const res = await resolvedFetcher(loginUrl, {
             method: "POST",
             headers: {
@@ -60,10 +77,10 @@ function createJfsOutletContext({
               "User-Agent": "Mozilla/5.0"
             },
             data: {
-              account,
+              account: scopedAccount,
               password: passwordHash,
               captchaToken: "",
-              deviceNo: require("node:crypto").randomUUID(),
+              deviceNo,
               countryId: "1"
             }
           });
@@ -77,6 +94,12 @@ function createJfsOutletContext({
           }
 
           currentToken = token;
+          lastNetworkCode = typeof res.data?.data?.networkCode === "string"
+            ? res.data.data.networkCode.trim()
+            : lastNetworkCode;
+          lastNetworkName = typeof res.data?.data?.name === "string"
+            ? res.data.data.name.trim()
+            : lastNetworkName;
           lastLoginAt = new Date();
           lastFailure = null;
           return currentToken;
@@ -100,6 +123,24 @@ function createJfsOutletContext({
 
     clearToken() {
       currentToken = null;
+    },
+
+    setCredentials(nextAccount, nextPassword) {
+      if (!nextAccount || !nextPassword) throw new Error("JFS credentials are required");
+      scopedAccount = String(nextAccount).trim();
+      scopedPassword = String(nextPassword);
+      currentToken = null;
+    },
+
+    async reconnect() {
+      currentToken = null;
+      await this.refreshLogin();
+      return { connected: true, networkCode: lastNetworkCode, name: lastNetworkName, sessionStatus: "ACTIVE" };
+    },
+
+    async testConnection() {
+      await this.getAuthToken();
+      return { connected: true, networkCode: lastNetworkCode, name: lastNetworkName, sessionStatus: "ACTIVE" };
     }
   };
 
@@ -162,6 +203,9 @@ function createJfsOutletContext({
       jfsBaseUrl
     },
     authManager,
+    axiosClient,
+    deviceNo,
+    request: options => externalRequest({ ...options, axiosInstance: axiosClient }),
     httpClient,
     getState() {
       return {
@@ -170,6 +214,7 @@ function createJfsOutletContext({
         outletCode,
         networkCode: networkCode || outletCode,
         hasToken: Boolean(currentToken),
+        networkCode: lastNetworkCode,
         lastLoginAt,
         lastFailure
       };
@@ -178,5 +223,6 @@ function createJfsOutletContext({
 }
 
 module.exports = {
-  createJfsOutletContext
+  createJfsOutletContext,
+  stableDeviceNo
 };

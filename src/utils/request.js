@@ -122,7 +122,8 @@ async function externalRequest({
   params,
   timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
   retries = DEFAULT_RETRY_COUNT,
-  retryDelayMs = DEFAULT_RETRY_DELAY_MS
+  retryDelayMs = DEFAULT_RETRY_DELAY_MS,
+  axiosInstance = axios
 }) {
   if (!url) {
     throw new TypeError("url is required");
@@ -134,7 +135,7 @@ async function externalRequest({
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
-      const response = await axios({
+      const response = await axiosInstance({
         url,
         method,
         headers,

@@ -336,6 +336,8 @@ test("scoped routes are protected and registered independently from legacy route
   assert.ok(paths.includes("/oms-scheduling-detail"));
   assert.ok(paths.includes("/oms"));
   assert.ok(paths.includes("/sender-detail"));
+  assert.ok(paths.includes("/scoped/reconnect"));
+  assert.ok(paths.includes("/scoped/test-connection"));
   for (const path of ["/oms-scheduling-list", "/oms-scheduling-detail"]) {
     const layer = router.stack.find(item => item.route?.path === path);
     assert.equal(layer.route.stack.length, 2);

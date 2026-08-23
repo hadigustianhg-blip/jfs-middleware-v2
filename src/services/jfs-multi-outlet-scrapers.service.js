@@ -1,6 +1,5 @@
 "use strict";
 
-const axios = require("axios");
 const FormData = require("form-data");
 const moment = require("moment-timezone");
 const { fetchInventoryDetail } = require("./inventory-detail.service");
@@ -39,6 +38,7 @@ function scopedRequestFn(requestFn) {
 async function executeMultiOutletScraper(context, operation, options = {}, dependencies = {}) {
   const token = await context.authManager.getAuthToken();
   const config = context.config;
+  const scopedAxios = context.axiosClient;
 
   switch (operation) {
     case "PICKUP": {
@@ -63,7 +63,7 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
           form.append("inputTimeStart", `${date} 00:00:00`);
           form.append("inputTimeEnd", `${date} 23:59:59`);
 
-          const response = await axios.post(
+          const response = await scopedAxios.post(
             "https://jfsgw.jtcargo.co.id/networkmanagement/omsWaybill/shippingWaybillList",
             form,
             {
@@ -137,7 +137,7 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
             countryId: "1"
           };
 
-          const response = await axios.post(
+          const response = await scopedAxios.post(
             "https://jfsgw.jtcargo.co.id/networkmanagement/dispatchWaybill/list",
             payload,
             {
@@ -219,7 +219,7 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
             isTimelyRepayment: ""
           };
 
-          const response = await axios.post(
+          const response = await scopedAxios.post(
             "https://jfsgw.jtcargo.co.id/codAccounting/api/collection-receipt-detail/page",
             payload,
             {
@@ -270,7 +270,7 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
         return { success: true, total: options.mockData.length, data: options.mockData, startDate, endDate };
       }
       try {
-        const response = await axios.post(
+        const response = await scopedAxios.post(
           "https://jfsgw.jtcargo.co.id/cash/ibk-report/list",
           {
             networkCode: config.networkCode,
@@ -303,7 +303,8 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
         const list = await scrapeOrderList({
           startTime: `${startDate} 00:00:00`,
           endTime: `${endDate} 23:59:59`,
-          authToken: token
+          authToken: token,
+          requestFn: context.request
         });
         return { success: true, total: list.length, data: list };
       } catch (err) {
@@ -314,12 +315,12 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
 
     case "OMS_SCHEDULING_LIST":
       return executeWithScopedAuth(context, scopedToken =>
-        scrapeOmsSchedulingList(options, scopedToken, scopedRequestFn(dependencies.requestFn))
+        scrapeOmsSchedulingList(options, scopedToken, scopedRequestFn(dependencies.requestFn || context.request))
       );
 
     case "OMS_SCHEDULING_DETAIL":
       return executeWithScopedAuth(context, scopedToken =>
-        scrapeOmsSchedulingDetail(options, scopedToken, scopedRequestFn(dependencies.requestFn))
+        scrapeOmsSchedulingDetail(options, scopedToken, scopedRequestFn(dependencies.requestFn || context.request))
       );
 
     case "INVENTORY":

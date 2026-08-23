@@ -64,6 +64,27 @@ function createInternalMultiOutletRouter({
     { path: "/jfs-sender-detail", op: "SENDER_DETAIL" }
   ];
 
+  router.post("/scoped/reconnect", authMiddleware, async (req, res) => {
+    try {
+      const account = req.get("X-JFS-Account") || req.get("x-jfs-account");
+      const password = req.get("X-JFS-Password") || req.get("x-jfs-password");
+      req.outletContext.authManager.setCredentials(account, password);
+      const result = await req.outletContext.authManager.reconnect();
+      return res.json({ success: true, data: result });
+    } catch (err) {
+      return res.status(401).json({ success: false, error: "JFS_SCOPED_RECONNECT_FAILED", message: err.message });
+    }
+  });
+
+  router.post("/scoped/test-connection", authMiddleware, async (req, res) => {
+    try {
+      const result = await req.outletContext.authManager.testConnection();
+      return res.json({ success: true, data: result });
+    } catch (err) {
+      return res.status(401).json({ success: false, error: "JFS_SCOPED_TEST_FAILED", message: err.message });
+    }
+  });
+
   for (const { path: routePath, op } of operations) {
     const fullPath = routePath;
     router.post(fullPath, authMiddleware, async (req, res) => {
