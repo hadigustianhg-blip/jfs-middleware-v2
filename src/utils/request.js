@@ -65,6 +65,28 @@ function createHttpError(status, data) {
   return error;
 }
 
+function isJfsApplicationUnauthorized(response) {
+  const code = response?.data?.code;
+  return code !== null && code !== undefined && String(code).trim() === "401";
+}
+
+function assertJfsApplicationAuthorized(response) {
+  if (!isJfsApplicationUnauthorized(response)) return response;
+
+  const error = new ExternalRequestError(
+    "Upstream application authorization failed",
+    {
+      code: "UNAUTHORIZED",
+      status: 401,
+      isTimeout: false,
+      isUpstream: true,
+      applicationCode: 401
+    }
+  );
+  error.response = { status: response?.status, data: response?.data };
+  throw error;
+}
+
 function createNetworkError(cause) {
   const isTimeout =
     cause.code === "ECONNABORTED" ||
@@ -130,11 +152,11 @@ async function externalRequest({
         throw createHttpError(response.status, data);
       }
 
-      return {
+      return assertJfsApplicationAuthorized({
         data,
         status: response.status,
         headers: response.headers
-      };
+      });
     } catch (cause) {
       const error =
         cause instanceof ExternalRequestError
@@ -169,6 +191,8 @@ async function externalRequest({
 
 module.exports = {
   ExternalRequestError,
+  assertJfsApplicationAuthorized,
   externalRequest,
+  isJfsApplicationUnauthorized,
   shouldRetry
 };

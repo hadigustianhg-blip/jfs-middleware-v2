@@ -3,6 +3,7 @@
 const crypto = require("node:crypto");
 
 function safeKeyMatches(receivedKey, expectedKey) {
+  if (!expectedKey || expectedKey.trim() === "") return false;
   if (
     typeof receivedKey !== "string" ||
     typeof expectedKey !== "string" ||
@@ -21,7 +22,7 @@ function safeKeyMatches(receivedKey, expectedKey) {
 
 function createJfsAuthController({
   authManager,
-  getAuthKey = () => process.env.JFS_AUTH_KEY || ""
+  getAuthKey = () => process.env.JFS_AUTH_KEY || process.env.JFS_MIDDLEWARE_AUTH_KEY || ""
 }) {
   if (!authManager) {
     throw new TypeError("authManager is required");
