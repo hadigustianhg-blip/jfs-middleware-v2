@@ -8,6 +8,7 @@ const { fetchAgingSignReport } = require("./aging-sign.service");
 const { fetchWaybillStatusBatch } = require("./waybill-status.service");
 const { scrapeOrderList } = require("../scrapers/order-scheduling.scraper");
 const { scrapeSensitiveDetail } = require("../scrapers/sensitive.scraper");
+const { assertJfsApplicationAuthorized } = require("../utils/request");
 const {
   scrapeOmsSchedulingDetail,
   scrapeOmsSchedulingList
@@ -28,6 +29,11 @@ async function executeWithScopedAuth(context, operation) {
     token = await context.authManager.refreshLogin();
     return operation(token);
   }
+}
+
+function scopedRequestFn(requestFn) {
+  if (!requestFn) return undefined;
+  return async options => assertJfsApplicationAuthorized(await requestFn(options));
 }
 
 async function executeMultiOutletScraper(context, operation, options = {}, dependencies = {}) {
@@ -308,12 +314,12 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
 
     case "OMS_SCHEDULING_LIST":
       return executeWithScopedAuth(context, scopedToken =>
-        scrapeOmsSchedulingList(options, scopedToken, dependencies.requestFn)
+        scrapeOmsSchedulingList(options, scopedToken, scopedRequestFn(dependencies.requestFn))
       );
 
     case "OMS_SCHEDULING_DETAIL":
       return executeWithScopedAuth(context, scopedToken =>
-        scrapeOmsSchedulingDetail(options, scopedToken, dependencies.requestFn)
+        scrapeOmsSchedulingDetail(options, scopedToken, scopedRequestFn(dependencies.requestFn))
       );
 
     case "INVENTORY":
@@ -364,5 +370,6 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
 
 module.exports = {
   executeMultiOutletScraper,
-  executeWithScopedAuth
+  executeWithScopedAuth,
+  scopedRequestFn
 };

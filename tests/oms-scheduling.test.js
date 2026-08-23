@@ -156,6 +156,150 @@ test("new operations use only scoped auth and retry scoped auth once", async () 
   else process.env.AUTH_TOKEN = originalGlobalToken;
 });
 
+test("application code 401 refreshes scoped auth and retries OMS list once", async () => {
+  let requestCalls = 0;
+  let clears = 0;
+  let refreshes = 0;
+  const context = scopedContext({
+    authManager: {
+      async getAuthToken() { return "STALE_SCOPED_TOKEN"; },
+      clearToken() { clears += 1; },
+      async refreshLogin() { refreshes += 1; return "REFRESHED_SCOPED_TOKEN"; }
+    }
+  });
+  const result = await executeMultiOutletScraper(context, "OMS_SCHEDULING_LIST", listInput, {
+    requestFn: async options => {
+      requestCalls += 1;
+      if (requestCalls === 1) return { status: 200, data: { code: 401, msg: "login required" } };
+      assert.equal(options.headers.Authtoken, "REFRESHED_SCOPED_TOKEN");
+      return { status: 200, data: { code: 0, data: { records: [], total: 0, pages: 0 } } };
+    }
+  });
+  assert.equal(clears, 1);
+  assert.equal(refreshes, 1);
+  assert.equal(requestCalls, 2);
+  assert.deepEqual(result, { records: [], total: 0, pagesFetched: 1 });
+});
+
+test("repeated application code 401 fails closed after one scoped retry", async () => {
+  let requestCalls = 0;
+  let refreshes = 0;
+  const context = scopedContext({
+    authManager: {
+      async getAuthToken() { return "STALE_SCOPED_TOKEN"; },
+      clearToken() {},
+      async refreshLogin() { refreshes += 1; return "REFRESHED_SCOPED_TOKEN"; }
+    }
+  });
+  await assert.rejects(
+    executeMultiOutletScraper(context, "OMS_SCHEDULING_LIST", listInput, {
+      requestFn: async () => {
+        requestCalls += 1;
+        return { status: 200, data: { code: "401", msg: "login required" } };
+      }
+    }),
+    error => error.code === "UNAUTHORIZED" && error.applicationCode === 401
+  );
+  assert.equal(refreshes, 1);
+  assert.equal(requestCalls, 2);
+});
+
+test("normal and non-auth application codes do not refresh scoped auth", async () => {
+  for (const code of [0, 405]) {
+    let refreshes = 0;
+    let requestCalls = 0;
+    const context = scopedContext({
+      authManager: {
+        async getAuthToken() { return "SCOPED_TOKEN"; },
+        clearToken() {},
+        async refreshLogin() { refreshes += 1; return "REFRESHED_SCOPED_TOKEN"; }
+      }
+    });
+    const promise = executeMultiOutletScraper(context, "OMS_SCHEDULING_LIST", listInput, {
+      requestFn: async () => {
+        requestCalls += 1;
+        return code === 0
+          ? { status: 200, data: { code, data: { records: [], total: 0, pages: 0 } } }
+          : { status: 200, data: { code, msg: "business error" } };
+      }
+    });
+    if (code === 0) await promise;
+    else await assert.rejects(promise, /INVALID_OMS_SCHEDULING_LIST_RESPONSE/);
+    assert.equal(refreshes, 0);
+    assert.equal(requestCalls, 1);
+  }
+});
+
+test("application code 401 refresh remains isolated to its outlet context", async () => {
+  let clearsA = 0;
+  let refreshesA = 0;
+  let clearsB = 0;
+  let refreshesB = 0;
+  const contextA = scopedContext({
+    tenantId: "tenant-a", outletId: "outlet-a",
+    authManager: {
+      async getAuthToken() { return "STALE_A"; },
+      clearToken() { clearsA += 1; },
+      async refreshLogin() { refreshesA += 1; return "FRESH_A"; }
+    }
+  });
+  const contextB = scopedContext({
+    tenantId: "tenant-b", outletId: "outlet-b",
+    authManager: {
+      async getAuthToken() { return "TOKEN_B"; },
+      clearToken() { clearsB += 1; },
+      async refreshLogin() { refreshesB += 1; return "FRESH_B"; }
+    }
+  });
+  let callsA = 0;
+  const requestA = async () => {
+    callsA += 1;
+    return callsA === 1
+      ? { status: 200, data: { code: 401 } }
+      : { status: 200, data: { code: 0, data: { records: [], total: 0, pages: 0 } } };
+  };
+  const requestB = async () => ({
+    status: 200, data: { code: 0, data: { records: [], total: 0, pages: 0 } }
+  });
+  await Promise.all([
+    executeMultiOutletScraper(contextA, "OMS_SCHEDULING_LIST", listInput, { requestFn: requestA }),
+    executeMultiOutletScraper(contextB, "OMS_SCHEDULING_LIST", listInput, { requestFn: requestB })
+  ]);
+  assert.equal(clearsA, 1);
+  assert.equal(refreshesA, 1);
+  assert.equal(clearsB, 0);
+  assert.equal(refreshesB, 0);
+});
+
+test("application code 401 refreshes OMS detail without global token fallback", async () => {
+  const originalGlobalToken = process.env.AUTH_TOKEN;
+  process.env.AUTH_TOKEN = "GLOBAL_TOKEN_MUST_NOT_BE_USED";
+  let requestCalls = 0;
+  let refreshes = 0;
+  const context = scopedContext({
+    authManager: {
+      async getAuthToken() { return "STALE_SCOPED_TOKEN"; },
+      clearToken() {},
+      async refreshLogin() { refreshes += 1; return "REFRESHED_SCOPED_TOKEN"; }
+    }
+  });
+  const result = await executeMultiOutletScraper(context, "OMS_SCHEDULING_DETAIL", {
+    externalJfsId: "123"
+  }, {
+    requestFn: async options => {
+      requestCalls += 1;
+      assert.notEqual(options.headers.Authtoken, process.env.AUTH_TOKEN);
+      if (requestCalls === 1) return { status: 200, data: { code: 401 } };
+      return { status: 200, data: { code: 0, data: { id: "123", waybillId: "WB1" } } };
+    }
+  });
+  assert.equal(result.id, "123");
+  assert.equal(refreshes, 1);
+  assert.equal(requestCalls, 2);
+  if (originalGlobalToken === undefined) delete process.env.AUTH_TOKEN;
+  else process.env.AUTH_TOKEN = originalGlobalToken;
+});
+
 test("scoped routes are protected and registered independently from legacy routes", () => {
   const router = createInternalMultiOutletRouter({ getAuthKey: () => "KEY" });
   const paths = router.stack.filter(layer => layer.route).map(layer => layer.route.path);
