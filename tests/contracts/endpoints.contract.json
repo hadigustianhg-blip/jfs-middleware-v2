@@ -81,16 +81,16 @@
       "sourceAnalyzed": true
     },
     "GET /jfs-ibk-report": {
-      "status": "legacy",
+      "status": "modular",
       "classifications": ["scraper", "heavy"],
-      "queryParameters": [],
+      "queryParameters": ["startDate", "endDate"],
       "successStatus": 200,
       "successResponseType": "json",
-      "successTopLevelKeys": ["success", "total", "page", "data"],
-      "errorStatuses": [400, 500],
-      "errorTopLevelKeys": ["error", "detail"],
-      "errorVariants": [["error"], ["error", "detail"]],
-      "verifiedByTest": false,
+      "successTopLevelKeys": ["success", "startDate", "endDate", "startTime", "endTime", "total", "page", "data"],
+      "errorStatuses": [400, 502, 504],
+      "errorTopLevelKeys": ["success", "message"],
+      "errorVariants": [["success", "message"]],
+      "verifiedByTest": true,
       "sourceAnalyzed": true
     },
     "GET /jfs-sensitive": {
@@ -103,6 +103,19 @@
       "errorStatuses": [400, 500],
       "errorTopLevelKeys": ["success", "error"],
       "errorVariants": [["error"], ["success", "error"]],
+      "verifiedByTest": true,
+      "sourceAnalyzed": true
+    },
+    "GET /jfs-sender-detail": {
+      "status": "modular",
+      "classifications": ["scraper", "security-sensitive"],
+      "queryParameters": ["waybillNo"],
+      "successStatus": 200,
+      "successResponseType": "json",
+      "successTopLevelKeys": ["success", "data", "meta"],
+      "errorStatuses": [400, 404, 500, 502, 504],
+      "errorTopLevelKeys": ["success", "error"],
+      "errorVariants": [["success", "error"]],
       "verifiedByTest": true,
       "sourceAnalyzed": true
     },

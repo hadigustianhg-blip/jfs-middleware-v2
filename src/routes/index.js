@@ -4,13 +4,17 @@ const express = require("express");
 const {
   createAgingSignController,
   createInventoryDetailController,
+  createIbkReportController,
   createJfsAuthController,
+  createSenderDetailController,
   createSensitiveController,
   createWaybillStatusController
 } = require("../controllers");
 const {
   createAgingSignService,
   createInventoryDetailService,
+  createIbkReportService,
+  createSenderDetailService,
   createSensitiveService,
   createWaybillStatusService
 } = require("../services");
@@ -28,6 +32,8 @@ const { createJfsAuthRoutes } = require("./jfs-auth.routes");
 const { createOrderSchedulingRoutes } = require("./order-scheduling.routes");
 const { createOrderSchedulingController } = require("../controllers/order-scheduling.controller");
 const { createOrderSchedulingService } = require("../services/order-scheduling.service");
+const { createIbkReportRoutes } = require("./ibk-report.routes");
+const { createSenderDetailRoutes } = require("./sender-detail.routes");
 
 function createModularRoutes({ getAuthToken, authManager } = {}) {
   const router = express.Router();
@@ -42,7 +48,15 @@ function createModularRoutes({ getAuthToken, authManager } = {}) {
     getAuthToken,
     refreshAuth
   });
+  const ibkReportService = createIbkReportService({
+    getAuthToken,
+    refreshAuth
+  });
   const sensitiveService = createSensitiveService({
+    getAuthToken,
+    refreshAuth
+  });
+  const senderDetailService = createSenderDetailService({
     getAuthToken,
     refreshAuth
   });
@@ -60,8 +74,14 @@ function createModularRoutes({ getAuthToken, authManager } = {}) {
   const sensitiveController = createSensitiveController({
     sensitiveService
   });
+  const senderDetailController = createSenderDetailController({
+    senderDetailService
+  });
   const inventoryDetailController = createInventoryDetailController({
     inventoryDetailService
+  });
+  const ibkReportController = createIbkReportController({
+    ibkReportService
   });
   const waybillStatusController = createWaybillStatusController({
     waybillStatusService
@@ -82,8 +102,14 @@ function createModularRoutes({ getAuthToken, authManager } = {}) {
   router.use(createSensitiveRoutes({
     getSensitiveDetail: sensitiveController.getSensitiveDetail
   }));
+  router.use(createSenderDetailRoutes({
+    getSenderDetail: senderDetailController.getSenderDetail
+  }));
   router.use(createInventoryDetailRoutes({
     getInventoryDetail: inventoryDetailController.getInventoryDetail
+  }));
+  router.use(createIbkReportRoutes({
+    getIbkReport: ibkReportController.getIbkReport
   }));
   router.use(createOrderSchedulingRoutes(orderSchedulingController));
 

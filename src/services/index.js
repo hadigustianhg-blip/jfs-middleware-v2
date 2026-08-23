@@ -12,10 +12,18 @@ const {
 const {
   createWaybillStatusService
 } = require("./waybill-status.service");
+const {
+  createIbkReportService
+} = require("./ibk-report.service");
+const {
+  createSenderDetailService
+} = require("./sender-detail.service");
 
 module.exports = {
   createAgingSignService,
+  createIbkReportService,
   createInventoryDetailService,
+  createSenderDetailService,
   createSensitiveService,
   createWaybillStatusService
 };

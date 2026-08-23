@@ -105,10 +105,38 @@ boleh menghubungi JFS production.
 | GET | `/jfs-cod` | Legacy | `date` | Data COD |
 | GET | `/jfs-ibk-report` | Heavy | — | Laporan IBK dengan risiko pagination |
 | GET | `/jfs-sensitive` | Modular, sensitive | `waybillNo` | Detail penerima |
+| GET | `/jfs-sender-detail` | Modular, sensitive | `waybillNo` | Nama, telepon, dan kota pengirim |
 | GET | `/jfs-order-sync` | Heavy | `start`, `end` | OMS dan detail per order |
 | GET | `/jfs-inventory` | Heavy | `date` | Dua tingkat pagination |
 
 Contract rinci tersedia di [docs/endpoints.md](docs/endpoints.md).
+
+### Detail pengirim
+
+```http
+GET /jfs-sender-detail?waybillNo=201680658475
+```
+
+Contoh response sukses:
+
+```json
+{
+  "success": true,
+  "data": {
+    "senderName": "ARYA SETYA DARMAWAN",
+    "senderMobilePhone": "087777376950",
+    "senderCityName": "Kab. Sumedang"
+  },
+  "meta": {
+    "waybillNo": "201680658475",
+    "source": "JFS"
+  }
+}
+```
+
+Endpoint ini hanya mengekspos tiga field pengirim yang diperlukan aplikasi.
+Token, header, cookie, ID internal, dan object upstream lainnya tidak ikut
+dikembalikan.
 
 ## Kompatibilitas
 
