@@ -30,6 +30,18 @@ async function executeWithScopedAuth(context, operation) {
   }
 }
 
+async function scopedAxiosPost(context, url, data, buildConfig) {
+  return executeWithScopedAuth(context, async token => {
+    const response = await context.axiosClient.post(url, data, buildConfig(token));
+    assertJfsApplicationAuthorized({
+      status: response.status,
+      data: response.data,
+      headers: response.headers
+    });
+    return response;
+  });
+}
+
 function scopedRequestFn(requestFn) {
   if (!requestFn) return undefined;
   return async options => assertJfsApplicationAuthorized(await requestFn(options));
@@ -63,13 +75,14 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
           form.append("inputTimeStart", `${date} 00:00:00`);
           form.append("inputTimeEnd", `${date} 23:59:59`);
 
-          const response = await scopedAxios.post(
+          const response = await scopedAxiosPost(
+            context,
             "https://jfsgw.jtcargo.co.id/networkmanagement/omsWaybill/shippingWaybillList",
             form,
-            {
+            scopedToken => ({
               headers: {
                 ...form.getHeaders(),
-                authtoken: token,
+                authtoken: scopedToken,
                 "Content-Type": "application/x-www-form-urlencoded",
                 lang: "ID",
                 langtype: "ID",
@@ -79,7 +92,7 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
                 "user-agent": "Mozilla/5.0"
               },
               timeout: 30000
-            }
+            })
           );
 
           const records = response?.data?.data || [];
@@ -137,14 +150,15 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
             countryId: "1"
           };
 
-          const response = await scopedAxios.post(
+          const response = await scopedAxiosPost(
+            context,
             "https://jfsgw.jtcargo.co.id/networkmanagement/dispatchWaybill/list",
             payload,
-            {
+            scopedToken => ({
               headers: {
                 Accept: "application/json, text/plain, */*",
                 "Content-Type": "application/json;charset=UTF-8",
-                Authtoken: token,
+                Authtoken: scopedToken,
                 Lang: "ID",
                 Langtype: "ID",
                 Origin: "https://jfs.jtcargo.co.id",
@@ -153,7 +167,7 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
                 "User-Agent": "Mozilla/5.0"
               },
               timeout: 30000
-            }
+            })
           );
 
           const records = Array.isArray(response?.data?.data) ? response.data.data : [];
@@ -372,5 +386,6 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
 module.exports = {
   executeMultiOutletScraper,
   executeWithScopedAuth,
+  scopedAxiosPost,
   scopedRequestFn
 };
