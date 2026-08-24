@@ -41,6 +41,7 @@ test("waybill status uses the correct URL, headers, and typed payload", async ()
     waybills: ["TEST001", "TEST002"],
     startDate: "2026-07-27",
     endDate: "2026-07-28",
+    scanSiteCode: "SUM001A",
     authToken: "TEST_TOKEN",
     requestFn: async options => {
       received = options;

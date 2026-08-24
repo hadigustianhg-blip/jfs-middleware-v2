@@ -61,7 +61,8 @@ function createInternalMultiOutletRouter({
     { path: "/waybill-status", op: "WAYBILL_STATUS" },
     { path: "/jfs-waybill-status", op: "WAYBILL_STATUS" },
     { path: "/sender-detail", op: "SENDER_DETAIL" },
-    { path: "/jfs-sender-detail", op: "SENDER_DETAIL" }
+    { path: "/jfs-sender-detail", op: "SENDER_DETAIL" },
+    { path: "/sensitive-detail", op: "SENSITIVE_DETAIL" }
   ];
 
   router.post("/scoped/reconnect", authMiddleware, async (req, res) => {
@@ -88,7 +89,7 @@ function createInternalMultiOutletRouter({
   for (const { path: routePath, op } of operations) {
     const fullPath = routePath;
     router.post(fullPath, authMiddleware, async (req, res) => {
-      if (op === "OMS_SCHEDULING_DETAIL") {
+      if (op === "OMS_SCHEDULING_DETAIL" || op === "SENDER_DETAIL" || op === "SENSITIVE_DETAIL") {
         res.set("Cache-Control", "private, no-store, max-age=0");
       }
       try {

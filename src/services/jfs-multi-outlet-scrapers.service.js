@@ -2,9 +2,11 @@
 
 const FormData = require("form-data");
 const moment = require("moment-timezone");
-const { fetchInventoryDetail } = require("./inventory-detail.service");
-const { fetchAgingSignReport } = require("./aging-sign.service");
-const { fetchWaybillStatusBatch } = require("./waybill-status.service");
+const { scrapeInventoryDetail } = require("../scrapers/inventory-detail.scraper");
+const { scrapeAgingSign } = require("../scrapers/aging-sign.scraper");
+const { scrapeWaybillStatus } = require("../scrapers/waybill-status.scraper");
+const { scrapeIbkReport } = require("../scrapers/ibk-report.scraper");
+const { scrapeSenderDetail } = require("../scrapers/sender-detail.scraper");
 const { scrapeOrderList } = require("../scrapers/order-scheduling.scraper");
 const { scrapeSensitiveDetail } = require("../scrapers/sensitive.scraper");
 const { assertJfsApplicationAuthorized } = require("../utils/request");
@@ -15,8 +17,17 @@ const {
 } = require("../scrapers/oms-scheduling.scraper");
 
 function isScopedUnauthorized(error) {
-  return error?.code === "UNAUTHORIZED" || error?.status === 401 || error?.status === 403 ||
-    error?.response?.status === 401 || error?.response?.status === 403;
+  const seen = new Set();
+  let current = error;
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    if (
+      current.code === "UNAUTHORIZED" || current.status === 401 || current.status === 403 ||
+      current.response?.status === 401 || current.response?.status === 403
+    ) return true;
+    current = current.cause;
+  }
+  return false;
 }
 
 async function executeWithScopedAuth(context, operation) {
@@ -43,15 +54,13 @@ async function scopedAxiosPost(context, url, data, buildConfig) {
   });
 }
 
-function scopedRequestFn(requestFn) {
-  if (!requestFn) return undefined;
-  return async options => assertJfsApplicationAuthorized(await requestFn(options));
+function scopedRequestFn(context, requestFn) {
+  const execute = requestFn || context.request;
+  return async options => assertJfsApplicationAuthorized(await execute(options));
 }
 
 async function executeMultiOutletScraper(context, operation, options = {}, dependencies = {}) {
-  const token = await context.authManager.getAuthToken();
   const config = context.config;
-  const scopedAxios = context.axiosClient;
 
   switch (operation) {
     case "PICKUP": {
@@ -286,23 +295,16 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
         return { success: true, total: options.mockData.length, data: options.mockData, startDate, endDate };
       }
       try {
-        const response = await scopedAxios.post(
-          "https://jfsgw.jtcargo.co.id/cash/ibk-report/list",
-          {
-            networkCode: config.networkCode,
-            startDate,
-            endDate
-          },
-          {
-            headers: {
-              authtoken: token,
-              "Content-Type": "application/json"
-            },
-            timeout: 30000
-          }
+        const result = await executeWithScopedAuth(context, scopedToken =>
+          scrapeIbkReport({
+            startTime: `${startDate} 00:00:00`,
+            endTime: `${endDate} 23:59:59`,
+            authToken: scopedToken,
+            requestFn: scopedRequestFn(context, dependencies.requestFn),
+            maxPages: options.maxPages
+          })
         );
-        const data = Array.isArray(response?.data?.data) ? response.data.data : [];
-        return { success: true, total: data.length, data, startDate, endDate };
+        return { success: true, total: result.data.length, ...result, startDate, endDate };
       } catch (err) {
         if (options.fallbackToMock) return { success: true, total: 0, data: [], startDate, endDate };
         throw err;
@@ -316,12 +318,12 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
         return { success: true, total: options.mockData.length, data: options.mockData };
       }
       try {
-        const list = await scrapeOrderList({
+        const list = await executeWithScopedAuth(context, scopedToken => scrapeOrderList({
           startTime: `${startDate} 00:00:00`,
           endTime: `${endDate} 23:59:59`,
-          authToken: token,
-          requestFn: context.request
-        });
+          authToken: scopedToken,
+          requestFn: scopedRequestFn(context, dependencies.requestFn)
+        }));
         return { success: true, total: list.length, data: list };
       } catch (err) {
         if (options.fallbackToMock) return { success: true, total: 0, data: [] };
@@ -331,47 +333,60 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
 
     case "OMS_SCHEDULING_LIST":
       return executeWithScopedAuth(context, scopedToken =>
-        scrapeOmsSchedulingList(options, scopedToken, scopedRequestFn(dependencies.requestFn || context.request))
+        scrapeOmsSchedulingList(options, scopedToken, scopedRequestFn(context, dependencies.requestFn))
       );
 
     case "OMS_SCHEDULING_DETAIL":
       return executeWithScopedAuth(context, scopedToken =>
-        scrapeOmsSchedulingDetail(options, scopedToken, scopedRequestFn(dependencies.requestFn || context.request))
+        scrapeOmsSchedulingDetail(options, scopedToken, scopedRequestFn(context, dependencies.requestFn))
       );
 
     case "INVENTORY":
-      return fetchInventoryDetail({
-        token,
-        networkCode: config.networkCode,
+      return executeWithScopedAuth(context, scopedToken => scrapeInventoryDetail({
+        authToken: scopedToken,
         startDate: options.startDate,
         endDate: options.endDate,
-        ...options
-      });
+        ...options,
+        requestFn: scopedRequestFn(context, dependencies.requestFn)
+      }));
 
     case "AGING_SIGN":
-      return fetchAgingSignReport({
-        token,
-        networkCode: config.networkCode,
-        startDate: options.startDate,
-        endDate: options.endDate,
-        ...options
-      });
+      return executeWithScopedAuth(context, scopedToken => scrapeAgingSign({
+        date: options.date || options.startDate || moment().tz("Asia/Jakarta").format("YYYY-MM-DD"),
+        authToken: scopedToken,
+        requestFn: scopedRequestFn(context, dependencies.requestFn)
+      }));
 
     case "WAYBILL_STATUS":
-      return fetchWaybillStatusBatch({
-        token,
-        waybillList: options.waybillList || options.billNoList || [],
-        ...options
-      });
+      return executeWithScopedAuth(context, scopedToken => scrapeWaybillStatus({
+        waybills: options.waybillList || options.billNoList || options.waybills || [],
+        startDate: options.startDate,
+        endDate: options.endDate,
+        scanSiteCode: config.networkCode,
+        authToken: scopedToken,
+        requestFn: scopedRequestFn(context, dependencies.requestFn)
+      }));
 
     case "SENDER_DETAIL": {
       if (!options.waybillNo) {
         throw new Error("waybillNo is required for SENDER_DETAIL");
       }
-      return scrapeSensitiveDetail({
+      return executeWithScopedAuth(context, scopedToken => scrapeSenderDetail({
         waybillNo: String(options.waybillNo),
-        authToken: token
-      });
+        authToken: scopedToken,
+        requestFn: scopedRequestFn(context, dependencies.requestFn)
+      }));
+    }
+
+    case "SENSITIVE_DETAIL": {
+      if (!options.waybillNo) {
+        throw new Error("waybillNo is required for SENSITIVE_DETAIL");
+      }
+      return executeWithScopedAuth(context, scopedToken => scrapeSensitiveDetail({
+        waybillNo: String(options.waybillNo),
+        authToken: scopedToken,
+        requestFn: scopedRequestFn(context, dependencies.requestFn)
+      }));
     }
 
     default:

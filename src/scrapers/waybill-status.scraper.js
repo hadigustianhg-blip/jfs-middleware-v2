@@ -12,6 +12,7 @@ function buildWaybillStatusPayload({
   waybills,
   startDate,
   endDate,
+  scanSiteCode,
   current,
   size = PAGE_SIZE
 }) {
@@ -20,7 +21,7 @@ function buildWaybillStatusPayload({
     size,
     startDate: `${startDate} 00:00:00`,
     endDate: `${endDate} 23:59:59`,
-    scanSiteCode: "SUM001A",
+    scanSiteCode,
     scanType: "收件",
     billType: 0,
     billNoList: waybills,
@@ -73,6 +74,7 @@ async function scrapeWaybillStatus({
   waybills,
   startDate,
   endDate,
+  scanSiteCode,
   authToken,
   requestFn = externalRequest
 }) {
@@ -87,6 +89,7 @@ async function scrapeWaybillStatus({
           waybills,
           startDate,
           endDate,
+          scanSiteCode,
           current: page,
           size: pageSize
         }),
