@@ -8,6 +8,7 @@ const { fetchWaybillStatusBatch } = require("./waybill-status.service");
 const { scrapeOrderList } = require("../scrapers/order-scheduling.scraper");
 const { scrapeSensitiveDetail } = require("../scrapers/sensitive.scraper");
 const { assertJfsApplicationAuthorized } = require("../utils/request");
+const { mapRepaymentType } = require("../mappers/cod.mapper");
 const {
   scrapeOmsSchedulingDetail,
   scrapeOmsSchedulingList
@@ -233,23 +234,24 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
             isTimelyRepayment: ""
           };
 
-          const response = await scopedAxios.post(
+          const response = await scopedAxiosPost(
+            context,
             "https://jfsgw.jtcargo.co.id/codAccounting/api/collection-receipt-detail/page",
             payload,
-            {
+            scopedToken => ({
               headers: {
                 Accept: "application/json, text/plain, */*",
                 "Content-Type": "application/json;charset=UTF-8",
-                authtoken: token,
+                Authtoken: scopedToken,
                 lang: "ID",
                 langtype: "ID",
                 origin: "https://jfs.jtcargo.co.id",
                 referer: "https://jfs.jtcargo.co.id/",
-                routename: "collectionReceiptDetail",
+                routename: "collectionAccountBook",
                 "user-agent": "Mozilla/5.0"
               },
               timeout: 30000
-            }
+            })
           );
 
           const records = Array.isArray(response?.data?.data?.records) ? response.data.data.records : [];
@@ -263,11 +265,11 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
 
         const clean = allRecords.map(item => ({
           waybillNo: item.waybillNo || "",
-          codAmount: item.codMoney || item.codAmount || 0,
-          repaymentStatus: item.repaymentStatus || null,
-          repaymentType: item.repaymentType || null,
-          signedAt: item.signTime || item.signedAt || "",
-          courierName: item.dispatchStaffName || item.courierName || ""
+          codAmount: item.codAmount || 0,
+          repaymentStatus: item.repaymentStatus || 0,
+          ...mapRepaymentType(item),
+          signTime: item.signTime || "",
+          dispatchStaffName: item.dispatchStaffName || ""
         }));
 
         return { success: true, total: clean.length, data: clean };

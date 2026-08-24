@@ -38,7 +38,8 @@ function scopedContext(overrides = {}) {
     authManager: {
       async getAuthToken() { tokenCalls += 1; return "SCOPED_TOKEN"; },
       clearToken() {},
-      async refreshLogin() { return "REFRESHED_SCOPED_TOKEN"; }
+      async refreshLogin() { return "REFRESHED_SCOPED_TOKEN"; },
+      async reconnect() { return { connected: true }; }
     },
     tokenCalls: () => tokenCalls,
     ...overrides
@@ -360,7 +361,7 @@ for (const operation of ["PICKUP", "DISPATCH"]) {
   });
 }
 
-test("OMS scheduling, Pickup, and Dispatch share one scoped context without global token mutation", async () => {
+test("OMS scheduling, Pickup, Dispatch, and COD share one scoped context without global token mutation", async () => {
   const original = process.env.AUTH_TOKEN;
   process.env.AUTH_TOKEN = "GLOBAL_MUST_REMAIN_UNCHANGED";
   const tokens = [];
@@ -368,8 +369,10 @@ test("OMS scheduling, Pickup, and Dispatch share one scoped context without glob
     axiosClient: {
       async post(url, _body, config) {
         tokens.push(config.headers.Authtoken || config.headers.authtoken);
-        assert.match(url, /shippingWaybillList|dispatchWaybill\/list/);
-        return { status: 200, data: { code: 0, data: [] }, headers: {} };
+        assert.match(url, /shippingWaybillList|dispatchWaybill\/list|collection-receipt-detail\/page/);
+        return url.includes("collection-receipt-detail")
+          ? { status: 200, data: { code: 0, data: { records: [] } }, headers: {} }
+          : { status: 200, data: { code: 0, data: [] }, headers: {} };
       }
     }
   });
@@ -377,11 +380,13 @@ test("OMS scheduling, Pickup, and Dispatch share one scoped context without glob
     tokens.push(options.headers.Authtoken);
     return { status: 200, data: { code: 0, data: { records: [], total: 0, pages: 0 } } };
   };
+  await context.authManager.reconnect();
   await executeMultiOutletScraper(context, "OMS_SCHEDULING_LIST", listInput, { requestFn: omsRequest });
   await executeMultiOutletScraper(context, "PICKUP", { date: "2026-08-24" });
   await executeMultiOutletScraper(context, "DISPATCH", { date: "2026-08-24" });
+  await executeMultiOutletScraper(context, "COD", { date: "2026-08-24" });
   await executeMultiOutletScraper(context, "OMS_SCHEDULING_LIST", listInput, { requestFn: omsRequest });
-  assert.deepEqual(tokens, ["SCOPED_TOKEN", "SCOPED_TOKEN", "SCOPED_TOKEN", "SCOPED_TOKEN"]);
+  assert.deepEqual(tokens, ["SCOPED_TOKEN", "SCOPED_TOKEN", "SCOPED_TOKEN", "SCOPED_TOKEN", "SCOPED_TOKEN"]);
   assert.equal(process.env.AUTH_TOKEN, "GLOBAL_MUST_REMAIN_UNCHANGED");
   if (original === undefined) delete process.env.AUTH_TOKEN; else process.env.AUTH_TOKEN = original;
 });
