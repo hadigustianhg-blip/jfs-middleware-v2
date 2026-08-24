@@ -59,15 +59,23 @@ function scopedRequestFn(context, requestFn) {
   return async options => assertJfsApplicationAuthorized(await execute(options));
 }
 
+function assertNoRuntimeTestHooks(options) {
+  for (const field of ["mockData", "fallbackToMock"]) {
+    if (Object.prototype.hasOwnProperty.call(options, field)) {
+      throw Object.assign(new Error(`Runtime option ${field} is forbidden`), {
+        code: "FORBIDDEN_RUNTIME_OPTION", field
+      });
+    }
+  }
+}
+
 async function executeMultiOutletScraper(context, operation, options = {}, dependencies = {}) {
+  assertNoRuntimeTestHooks(options);
   const config = context.config;
 
   switch (operation) {
     case "PICKUP": {
       const date = options.date || options.operationalDate || moment().tz("Asia/Jakarta").format("YYYY-MM-DD");
-      if (Array.isArray(options.mockData)) {
-        return { success: true, total: options.mockData.length, data: options.mockData };
-      }
       try {
         let allRecords = [];
         let current = 1;
@@ -131,16 +139,12 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
 
         return { success: true, total: clean.length, data: clean };
       } catch (err) {
-        if (options.fallbackToMock) return { success: true, total: 0, data: [] };
         throw err;
       }
     }
 
     case "DISPATCH": {
       const date = options.date || options.operationalDate || moment().tz("Asia/Jakarta").format("YYYY-MM-DD");
-      if (Array.isArray(options.mockData)) {
-        return { success: true, total: options.mockData.length, data: options.mockData };
-      }
       try {
         let allRecords = [];
         let current = 1;
@@ -207,16 +211,12 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
 
         return { success: true, total: clean.length, data: clean };
       } catch (err) {
-        if (options.fallbackToMock) return { success: true, total: 0, data: [] };
         throw err;
       }
     }
 
     case "COD": {
       const date = options.date || options.operationalDate || moment().tz("Asia/Jakarta").format("YYYY-MM-DD");
-      if (Array.isArray(options.mockData)) {
-        return { success: true, total: options.mockData.length, data: options.mockData };
-      }
       try {
         let allRecords = [];
         let current = 1;
@@ -283,7 +283,6 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
 
         return { success: true, total: clean.length, data: clean };
       } catch (err) {
-        if (options.fallbackToMock) return { success: true, total: 0, data: [] };
         throw err;
       }
     }
@@ -291,9 +290,6 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
     case "IBK": {
       const startDate = options.startDate || moment().tz("Asia/Jakarta").format("YYYY-MM-DD");
       const endDate = options.endDate || startDate;
-      if (Array.isArray(options.mockData)) {
-        return { success: true, total: options.mockData.length, data: options.mockData, startDate, endDate };
-      }
       try {
         const result = await executeWithScopedAuth(context, scopedToken =>
           scrapeIbkReport({
@@ -306,7 +302,6 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
         );
         return { success: true, total: result.data.length, ...result, startDate, endDate };
       } catch (err) {
-        if (options.fallbackToMock) return { success: true, total: 0, data: [], startDate, endDate };
         throw err;
       }
     }
@@ -314,9 +309,6 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
     case "OMS": {
       const startDate = options.startDate || moment().tz("Asia/Jakarta").format("YYYY-MM-DD");
       const endDate = options.endDate || startDate;
-      if (Array.isArray(options.mockData)) {
-        return { success: true, total: options.mockData.length, data: options.mockData };
-      }
       try {
         const list = await executeWithScopedAuth(context, scopedToken => scrapeOrderList({
           startTime: `${startDate} 00:00:00`,
@@ -326,7 +318,6 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
         }));
         return { success: true, total: list.length, data: list };
       } catch (err) {
-        if (options.fallbackToMock) return { success: true, total: 0, data: [] };
         throw err;
       }
     }
@@ -401,6 +392,7 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
 }
 
 module.exports = {
+  assertNoRuntimeTestHooks,
   executeMultiOutletScraper,
   executeWithScopedAuth,
   scopedAxiosPost,

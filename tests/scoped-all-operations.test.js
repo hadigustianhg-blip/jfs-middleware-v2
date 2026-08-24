@@ -72,3 +72,56 @@ test("a scoped application 401 refreshes only once and retries the current opera
   assert.equal(ctx.state.clears, 1);
   assert.equal(ctx.state.refreshes, 1);
 });
+
+test("runtime route validation rejects caller-controlled mock and fallback fields for every scoped operation", () => {
+  const { OPERATION_FIELDS, validateOperationOptions } = require("../src/routes/internal-multi-outlet.routes");
+  for (const operation of Object.keys(OPERATION_FIELDS)) {
+    assert.throws(
+      () => validateOperationOptions(operation, { mockData: [{ fabricated: true }] }),
+      error => error.code === "FORBIDDEN_RUNTIME_OPTION" && error.field === "mockData"
+    );
+    assert.throws(
+      () => validateOperationOptions(operation, { fallbackToMock: true }),
+      error => error.code === "FORBIDDEN_RUNTIME_OPTION" && error.field === "fallbackToMock"
+    );
+  }
+});
+
+test("runtime route returns 400 before executor can honor a forbidden test hook", async () => {
+  const { createInternalMultiOutletRouter } = require("../src/routes/internal-multi-outlet.routes");
+  const router = createInternalMultiOutletRouter({ getAuthKey: () => "KEY" });
+  const layer = router.stack.find(item => item.route?.path === "/pickup");
+  const handler = layer.route.stack.at(-1).handle;
+  const result = {};
+  const res = {
+    status(code) { result.status = code; return this; },
+    json(body) { result.body = body; return this; },
+    set() { return this; }
+  };
+  await handler({
+    body: { mockData: [{ waybillNo: "FABRICATED" }] },
+    outletContext: { getState() { return {}; } }
+  }, res);
+  assert.equal(result.status, 400);
+  assert.equal(result.body.success, false);
+  assert.equal(result.body.error, "FORBIDDEN_RUNTIME_OPTION");
+});
+
+test("fallbackToMock cannot suppress an upstream failure", async () => {
+  const ctx = context();
+  let upstreamCalls = 0;
+  ctx.axiosClient.post = async () => {
+    upstreamCalls += 1;
+    throw new Error("UPSTREAM_FAILED");
+  };
+  await assert.rejects(
+    executeMultiOutletScraper(ctx, "PICKUP", { date: "2026-08-24", fallbackToMock: true }),
+    error => error.code === "FORBIDDEN_RUNTIME_OPTION"
+  );
+  assert.equal(upstreamCalls, 0);
+  await assert.rejects(
+    executeMultiOutletScraper(ctx, "PICKUP", { date: "2026-08-24" }),
+    /UPSTREAM_FAILED/
+  );
+  assert.equal(upstreamCalls, 1);
+});

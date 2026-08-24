@@ -5,6 +5,36 @@ const { trustedOutletContextMiddleware } = require("../middleware/trusted-outlet
 const { executeMultiOutletScraper } = require("../services/jfs-multi-outlet-scrapers.service");
 const { globalRegistry } = require("../context/outlet-context-registry");
 
+const OPERATION_FIELDS = {
+  PICKUP: ["networkCode", "date", "operationalDate"],
+  DISPATCH: ["networkCode", "date", "operationalDate"],
+  COD: ["networkCode", "date", "operationalDate"],
+  IBK: ["networkCode", "startDate", "endDate", "maxPages"],
+  OMS: ["networkCode", "startDate", "endDate"],
+  OMS_SCHEDULING_LIST: ["networkCode", "startInputTime", "endInputTime", "timeType", "orderStatusCode", "startPickTime", "endPickTime", "pageSize"],
+  OMS_SCHEDULING_DETAIL: ["networkCode", "externalJfsId"],
+  INVENTORY: ["networkCode", "startDate", "endDate", "billCode", "size", "maxPage"],
+  AGING_SIGN: ["networkCode", "date", "startDate", "endDate"],
+  WAYBILL_STATUS: ["networkCode", "waybillList", "billNoList", "waybills", "startDate", "endDate"],
+  SENDER_DETAIL: ["networkCode", "waybillNo"],
+  SENSITIVE_DETAIL: ["networkCode", "waybillNo"]
+};
+
+function validateOperationOptions(operation, value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw Object.assign(new Error("Request body must be an object"), { code: "INVALID_RUNTIME_OPTIONS" });
+  }
+  const allowed = new Set(OPERATION_FIELDS[operation] || []);
+  for (const field of Object.keys(value)) {
+    if (!allowed.has(field)) {
+      throw Object.assign(new Error(`Runtime option ${field} is not allowed for ${operation}`), {
+        code: "FORBIDDEN_RUNTIME_OPTION", field
+      });
+    }
+  }
+  return value;
+}
+
 function createInternalMultiOutletRouter({
   getAuthKey = () => process.env.JFS_AUTH_KEY || "",
   registry = globalRegistry
@@ -93,16 +123,18 @@ function createInternalMultiOutletRouter({
         res.set("Cache-Control", "private, no-store, max-age=0");
       }
       try {
-        const result = await executeMultiOutletScraper(req.outletContext, op, req.body || {});
+        const options = validateOperationOptions(op, req.body || {});
+        const result = await executeMultiOutletScraper(req.outletContext, op, options);
         return res.json({
           success: true,
           data: result,
           context: req.outletContext.getState()
         });
       } catch (err) {
-        return res.status(500).json({
+        const invalidRuntimeOptions = err.code === "FORBIDDEN_RUNTIME_OPTION" || err.code === "INVALID_RUNTIME_OPTIONS";
+        return res.status(invalidRuntimeOptions ? 400 : 500).json({
           success: false,
-          error: "SCRAPER_EXECUTION_FAILED",
+          error: invalidRuntimeOptions ? err.code : "SCRAPER_EXECUTION_FAILED",
           message: err.message
         });
       }
@@ -113,5 +145,7 @@ function createInternalMultiOutletRouter({
 }
 
 module.exports = {
-  createInternalMultiOutletRouter
+  OPERATION_FIELDS,
+  createInternalMultiOutletRouter,
+  validateOperationOptions
 };
