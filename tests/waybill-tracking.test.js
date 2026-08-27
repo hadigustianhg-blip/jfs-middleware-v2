@@ -218,3 +218,63 @@ test("tracking implementation has no global token, mock, database, hardcoded out
   assert.doesNotMatch(scraperSource, /SUM001A|AUTH_TOKEN|mockData|fallbackToMock|console\.|logger\.|prisma|database/i);
   assert.doesNotMatch(source, /WAYBILL_TRACKING[\s\S]{0,120}?(?:create|update|upsert|delete)\s*\(/i);
 });
+
+test("tracking route emits exactly one sanitized diagnostic error log on 500 failure without leaking secrets/PII", async () => {
+  const originalError = console.error;
+  const logs = [];
+  console.error = (...args) => logs.push(args);
+
+  try {
+    const router = createInternalMultiOutletRouter({ getAuthKey: () => "EXPECTED_KEY" });
+    const layer = router.stack.find(item => item.route?.path === "/waybill-tracking");
+    const handler = layer.route.stack[1].handle;
+
+    const req = {
+      body: { waybillNo: WAYBILL_NO },
+      outletContext: {
+        ...scopedContext(),
+        getState() { return {}; }
+      }
+    };
+    req.outletContext.authManager.getAuthToken = async () => {
+      const err = new Error("Upstream login failed status 502: Authtoken=secret123 password=secretpass 08123456789");
+      err.code = "LOGIN_FAILED";
+      throw err;
+    };
+
+    const resResult = {};
+    const res = {
+      set() {},
+      status(code) { resResult.status = code; return this; },
+      json(body) { resResult.body = body; return this; }
+    };
+
+    await handler(req, res);
+
+    assert.equal(resResult.status, 500);
+    assert.deepEqual(resResult.body, {
+      success: false,
+      error: "SCRAPER_EXECUTION_FAILED",
+      message: "Upstream login failed status 502: Authtoken=secret123 password=secretpass 08123456789"
+    });
+
+    assert.equal(logs.length, 1);
+    const [msg, metadata] = logs[0];
+    assert.equal(msg, "[JFS][WAYBILL_TRACKING] request failed");
+    assert.deepEqual(metadata, {
+      operation: "WAYBILL_TRACKING",
+      errorType: "Error",
+      errorCode: "LOGIN_FAILED",
+      stage: "SCOPED_AUTH",
+      upstreamStatus: 502
+    });
+
+    const serializedLog = JSON.stringify(metadata);
+    assert.equal(serializedLog.includes("secret123"), false);
+    assert.equal(serializedLog.includes("secretpass"), false);
+    assert.equal(serializedLog.includes("08123456789"), false);
+    assert.equal(serializedLog.includes("Authtoken"), false);
+  } finally {
+    console.error = originalError;
+  }
+});

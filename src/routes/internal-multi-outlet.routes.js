@@ -94,6 +94,71 @@ function createInternalMultiOutletRouter({
     { path: "/waybill-detail", op: "WAYBILL_DETAIL" }
   ];
 
+function inferMiddlewareStage(err) {
+  if (!err) return "UNKNOWN";
+  const code = err.code || "";
+  const name = err.name || "";
+  const msg = typeof err.message === "string" ? err.message : "";
+
+  if (code === "SCOPED_CONTEXT_MISSING" || code === "CONTEXT_NOT_FOUND") {
+    return "SCOPED_CONTEXT";
+  }
+  if (
+    code === "UNAUTHORIZED" ||
+    code === "LOGIN_FAILED" ||
+    code === "AUTH_TOKEN_MISSING" ||
+    msg.includes("login") ||
+    msg.includes("auth") ||
+    msg.includes("UNAUTHORIZED")
+  ) {
+    return "SCOPED_AUTH";
+  }
+  if (
+    code === "JFS_WAYBILL_TRACKING_UPSTREAM_FAILED" ||
+    code === "JFS_WAYBILL_DETAIL_UPSTREAM_FAILED" ||
+    msg.includes("upstream") ||
+    msg.includes("request failed")
+  ) {
+    return "JFS_APP_RESPONSE";
+  }
+  if (
+    name === "FetchError" ||
+    code === "FETCH_FAILED" ||
+    msg.includes("fetch") ||
+    msg.includes("ENOTFOUND") ||
+    msg.includes("ECONNREFUSED") ||
+    msg.includes("timeout") ||
+    msg.includes("network")
+  ) {
+    return "JFS_REQUEST";
+  }
+  if (
+    name === "TypeError" ||
+    name === "SyntaxError" ||
+    msg.includes("JSON") ||
+    msg.includes("parse")
+  ) {
+    return "NORMALIZATION";
+  }
+  return "UNKNOWN";
+}
+
+function extractUpstreamStatus(err) {
+  if (!err) return undefined;
+  const status = err.status || err.statusCode || err.response?.status;
+  if (typeof status === "number" && status >= 100 && status <= 599) {
+    return status;
+  }
+  if (typeof err.message === "string") {
+    const match = err.message.match(/\bstatus\s+(\d{3})\b/i);
+    if (match) {
+      const code = parseInt(match[1], 10);
+      if (code >= 100 && code <= 599) return code;
+    }
+  }
+  return undefined;
+}
+
   for (const { path: routePath, op } of operations) {
     const fullPath = routePath;
     router.post(fullPath, authMiddleware, async (req, res) => {
@@ -111,6 +176,22 @@ function createInternalMultiOutletRouter({
       } catch (err) {
         const invalidRuntimeOptions = err.code === "FORBIDDEN_RUNTIME_OPTION" || err.code === "INVALID_RUNTIME_OPTIONS" || err.code === "INVALID_WAYBILL_NO";
         const notFound = err.code === "WAYBILL_TRACKING_NOT_FOUND" || err.code === "WAYBILL_DETAIL_NOT_FOUND";
+
+        if ((op === "WAYBILL_TRACKING" || op === "WAYBILL_DETAIL") && !invalidRuntimeOptions && !notFound) {
+          const errorType = err instanceof Error ? err.name : typeof err;
+          const errorCode = err.code || "UNKNOWN";
+          const stage = inferMiddlewareStage(err);
+          const upstreamStatus = extractUpstreamStatus(err);
+
+          console.error(`[JFS][${op}] request failed`, {
+            operation: op,
+            errorType,
+            errorCode,
+            stage,
+            ...(upstreamStatus ? { upstreamStatus } : {})
+          });
+        }
+
         return res.status(invalidRuntimeOptions ? 400 : notFound ? 404 : 500).json({
           success: false,
           error: invalidRuntimeOptions || notFound ? err.code : "SCRAPER_EXECUTION_FAILED",
