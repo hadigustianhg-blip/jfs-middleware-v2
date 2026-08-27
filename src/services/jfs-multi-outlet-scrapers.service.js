@@ -359,6 +359,14 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
       });
     }
 
+    case "SENSITIVE_DETAIL": {
+      return executeWithScopedAuth(context, scopedToken => scrapeSensitiveDetail({
+        waybillNo: String(options.waybillNo),
+        authToken: scopedToken,
+        requestFn: scopedRequestFn(dependencies.requestFn)
+      }));
+    }
+
     case "WAYBILL_TRACKING":
       return executeWithScopedAuth(context, scopedToken => scrapeWaybillTracking({
         waybillNo: options.waybillNo,

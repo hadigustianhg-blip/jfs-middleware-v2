@@ -6,6 +6,7 @@ const { executeMultiOutletScraper } = require("../services/jfs-multi-outlet-scra
 const { globalRegistry } = require("../context/outlet-context-registry");
 
 const OPERATION_FIELDS = {
+  SENSITIVE_DETAIL: ["waybillNo"],
   WAYBILL_TRACKING: ["waybillNo"],
   WAYBILL_DETAIL: ["waybillNo"]
 };
@@ -88,6 +89,7 @@ function createInternalMultiOutletRouter({
     { path: "/jfs-waybill-status", op: "WAYBILL_STATUS" },
     { path: "/sender-detail", op: "SENDER_DETAIL" },
     { path: "/jfs-sender-detail", op: "SENDER_DETAIL" },
+    { path: "/sensitive-detail", op: "SENSITIVE_DETAIL" },
     { path: "/waybill-tracking", op: "WAYBILL_TRACKING" },
     { path: "/waybill-detail", op: "WAYBILL_DETAIL" }
   ];
@@ -95,7 +97,7 @@ function createInternalMultiOutletRouter({
   for (const { path: routePath, op } of operations) {
     const fullPath = routePath;
     router.post(fullPath, authMiddleware, async (req, res) => {
-      if (op === "OMS_SCHEDULING_DETAIL" || op === "WAYBILL_TRACKING" || op === "WAYBILL_DETAIL") {
+      if (op === "OMS_SCHEDULING_DETAIL" || op === "SENSITIVE_DETAIL" || op === "WAYBILL_TRACKING" || op === "WAYBILL_DETAIL") {
         res.set("Cache-Control", "private, no-store, max-age=0");
       }
       try {
