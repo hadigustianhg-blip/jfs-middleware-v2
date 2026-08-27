@@ -5,6 +5,40 @@ const { externalRequest } = require("../utils/request");
 
 const JFS_LOGIN_URL = "https://jfsgw.jtcargo.co.id/basicdata/login";
 
+function shortFingerprint(value) {
+  return crypto.createHash("sha256").update(String(value)).digest("hex").slice(0, 10);
+}
+
+function logLoginMetadata(stage, { account, password, deviceNo, headers, response }) {
+  const payload = response?.data;
+  const profile = payload?.data;
+  console.info(`[JFS][LOGIN_RUNTIME] ${stage}`, {
+    environment: process.env.RAILWAY_ENVIRONMENT_NAME || process.env.NODE_ENV || "unknown",
+    endpointHost: "jfsgw.jtcargo.co.id",
+    endpointPath: "/basicdata/login",
+    method: "POST",
+    headerNames: Object.keys(headers).sort(),
+    userAgent: headers["User-Agent"],
+    routename: headers.Routename,
+    lang: headers.Lang,
+    langtype: headers.Langtype,
+    bodyKeyNames: ["account", "password", "captchaToken", "deviceNo", "countryId"],
+    deviceFingerprint: shortFingerprint(deviceNo),
+    accountFingerprint: shortFingerprint(String(account).trim()),
+    passwordMode: /^[a-f0-9]{32}$/i.test(password) ? "ALREADY_MD5" : "RAW_TO_HASH",
+    ...(response ? {
+      httpStatus: response.status,
+      appCode: payload?.code,
+      succ: payload?.succ,
+      fail: payload?.fail,
+      tokenPresent: Boolean(profile?.token),
+      networkCodePresent: Boolean(profile?.networkCode),
+      responseShapeKeys: payload && typeof payload === "object" ? Object.keys(payload).sort() : [],
+      profileShapeKeys: profile && typeof profile === "object" ? Object.keys(profile).sort() : []
+    } : {})
+  });
+}
+
 function hashPassword(password) {
   return crypto
     .createHash("md5")
@@ -43,10 +77,12 @@ async function performJfsLogin({
   }
 
   try {
+    const headers = buildLoginHeaders();
+    logLoginMetadata("request", { account, password, deviceNo, headers });
     const response = await requestFn({
       method: "POST",
       url: JFS_LOGIN_URL,
-      headers: buildLoginHeaders(),
+      headers,
       body: {
         account: account.trim(),
         password: hashPassword(password),
@@ -55,6 +91,7 @@ async function performJfsLogin({
         countryId: "1"
       }
     });
+    logLoginMetadata("response", { account, password, deviceNo, headers, response });
 
     const profile = response?.data?.data;
     if (!profile?.token) {
