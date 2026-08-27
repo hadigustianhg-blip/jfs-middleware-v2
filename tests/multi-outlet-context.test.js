@@ -104,7 +104,7 @@ test("scoped reconnect delegates login contract to the shared auth engine", asyn
   assert.equal((await context.authManager.testConnection()).connected, true);
   assert.equal(context.getState().hasToken, true);
   assert.equal(loginRequest.options.data.deviceNo, context.deviceNo);
-  assert.equal(loginRequest.options.headers["User-Agent"], "Mozilla/5.0");
+  assert.match(loginRequest.options.headers["User-Agent"], /Mozilla\/5\.0/);
 });
 
 test("new scoped credentials invalidate an in-flight login and win the reconnect", async () => {

@@ -81,8 +81,10 @@ function buildLoginHeaders() {
     "Content-Type": "application/json;charset=UTF-8",
     Lang: "ID",
     Langtype: "ID",
+    Origin: "https://jfs.jtcargo.co.id",
+    Referer: "https://jfs.jtcargo.co.id/",
     Routename: "login",
-    "User-Agent": "Mozilla/5.0"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
   };
 }
 
@@ -134,8 +136,8 @@ async function pollDeviceVerificationApproval({
   staffNo,
   deviceNo,
   requestFn = externalRequest,
-  maxAttempts = 10,
-  pollIntervalMs = 100
+  maxAttempts = 12,
+  pollIntervalMs = process.env.NODE_ENV === "test" ? 1 : 3000
 }) {
   const headers = buildLoginHeaders();
 
@@ -183,6 +185,8 @@ async function performJfsLogin({
   account,
   password,
   deviceNo = process.env.JFS_DEVICE_NO || crypto.randomUUID(),
+  feiShuCode,
+  feiShuState,
   requestFn = externalRequest,
   isRetryAfterVerification = false
 } = {}) {
@@ -194,17 +198,27 @@ async function performJfsLogin({
     const headers = buildLoginHeaders();
     const passwordHash = hashPassword(password);
     logLoginMetadata("request", { account, password, deviceNo, headers });
+
+    const body = {
+      account: account.trim(),
+      password: passwordHash,
+      captchaToken: "",
+      deviceNo,
+      countryId: "1"
+    };
+
+    if (feiShuCode && typeof feiShuCode === "string" && feiShuCode.trim()) {
+      body.feiShuCode = feiShuCode.trim();
+    }
+    if (feiShuState && typeof feiShuState === "string" && feiShuState.trim()) {
+      body.feiShuState = feiShuState.trim();
+    }
+
     const response = await requestFn({
       method: "POST",
       url: JFS_LOGIN_URL,
       headers,
-      body: {
-        account: account.trim(),
-        password: passwordHash,
-        captchaToken: "",
-        deviceNo,
-        countryId: "1"
-      }
+      body
     });
     logLoginMetadata("response", { account, password, deviceNo, headers, response });
 
@@ -219,14 +233,16 @@ async function performJfsLogin({
         staffNo,
         deviceNo,
         requestFn,
-        maxAttempts: 10,
-        pollIntervalMs: 1
+        maxAttempts: 12,
+        pollIntervalMs: process.env.NODE_ENV === "test" ? 1 : 3000
       });
 
       return performJfsLogin({
         account,
         password,
         deviceNo,
+        feiShuCode,
+        feiShuState,
         requestFn,
         isRetryAfterVerification: true
       });

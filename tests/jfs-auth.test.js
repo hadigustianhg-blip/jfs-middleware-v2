@@ -75,11 +75,11 @@ test("JFS auth manager hashes the original password once and caches token", asyn
   assert.equal(received.url, JFS_LOGIN_URL);
   assert.deepEqual(received.headers, buildLoginHeaders());
   assert.deepEqual(Object.keys(received.headers).sort(), [
-    "Accept", "Content-Type", "Lang", "Langtype", "Routename", "User-Agent"
+    "Accept", "Content-Type", "Lang", "Langtype", "Origin", "Referer", "Routename", "User-Agent"
   ].sort());
-  assert.equal(received.headers["User-Agent"], "Mozilla/5.0");
-  assert.equal("Origin" in received.headers, false);
-  assert.equal("Referer" in received.headers, false);
+  assert.match(received.headers["User-Agent"], /Mozilla\/5\.0/);
+  assert.equal(received.headers.Origin, "https://jfs.jtcargo.co.id");
+  assert.equal(received.headers.Referer, "https://jfs.jtcargo.co.id/");
   assert.deepEqual(received.body, {
     account: "TEST_ACCOUNT",
     password: hashPassword("TEST_PASSWORD"),
@@ -91,6 +91,27 @@ test("JFS auth manager hashes the original password once and caches token", asyn
   assert.equal(result.token, "TEST_LOGIN_TOKEN");
   assert.equal(manager.getToken(), "TEST_LOGIN_TOKEN");
   assert.equal(emittedToken, "TEST_LOGIN_TOKEN");
+});
+
+test("performJfsLogin includes feiShuCode and feiShuState in body when provided", async () => {
+  const { performJfsLogin } = require("../src/auth/jfs-auth-manager");
+  let sentBody;
+
+  const result = await performJfsLogin({
+    account: "FEISHU_ACC",
+    password: "FEISHU_PWD",
+    deviceNo: "FEISHU_DEV",
+    feiShuCode: "FS_CODE_123",
+    feiShuState: "FS_STATE_456",
+    requestFn: async options => {
+      sentBody = options.body;
+      return { data: { code: 1, data: { token: "FS_TOKEN", networkCode: "NET_FS" } } };
+    }
+  });
+
+  assert.equal(sentBody.feiShuCode, "FS_CODE_123");
+  assert.equal(sentBody.feiShuState, "FS_STATE_456");
+  assert.equal(result.token, "FS_TOKEN");
 });
 
 test("refresh login reuses the stored hash and deduplicates concurrent calls", async () => {
