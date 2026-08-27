@@ -32,7 +32,13 @@ function createJfsOutletContext({
     throw new TypeError("tenantId, outletId, and outletCode are required for JfsOutletContext");
   }
 
-  let lastLoginAt = initialToken ? new Date() : null;
+  // Emergency production bootstrap: allow a trusted JFS browser token to be
+  // injected through Railway without storing it in source code or logs.
+  // Explicit per-context initialToken always wins over the environment value.
+  const configuredAuthToken = process.env.JFS_AUTH_TOKEN?.trim() || "";
+  const runtimeInitialToken = (initialToken || configuredAuthToken || "").trim();
+
+  let lastLoginAt = runtimeInitialToken ? new Date() : null;
   let lastFailure = null;
   let lastNetworkCode = networkCode || null;
   let lastNetworkName = null;
@@ -46,7 +52,7 @@ function createJfsOutletContext({
   });
 
   const sharedAuthManager = createJfsAuthManager({
-    initialToken: initialToken || "",
+    initialToken: runtimeInitialToken,
     deviceNo,
     requestFn: options => resolvedFetcher(options.url, {
       method: options.method,
@@ -56,7 +62,10 @@ function createJfsOutletContext({
   });
   if (account && password) {
     sharedAuthManager.setCredentials(account, password);
-    if (initialToken) sharedAuthManager.setToken(initialToken);
+    // setCredentials intentionally invalidates the cached token. Re-seed the
+    // trusted emergency token so scoped bootstrap/reconnect can use it without
+    // forcing a fresh Feishu login.
+    if (runtimeInitialToken) sharedAuthManager.setToken(runtimeInitialToken);
   }
 
   function applyProfile(profile) {
@@ -97,9 +106,17 @@ function createJfsOutletContext({
 
     setCredentials(nextAccount, nextPassword) {
       sharedAuthManager.setCredentials(nextAccount, nextPassword);
+      if (runtimeInitialToken) sharedAuthManager.setToken(runtimeInitialToken);
     },
 
     async reconnect() {
+      // In emergency token mode, do not throw away a browser-authorized token
+      // just to perform a fresh login that would trigger Feishu verification.
+      if (sharedAuthManager.getToken()) {
+        lastLoginAt = new Date();
+        lastFailure = null;
+        return { connected: true, networkCode: lastNetworkCode, name: lastNetworkName, sessionStatus: "ACTIVE" };
+      }
       await captureLogin(() => sharedAuthManager.reconnect());
       return { connected: true, networkCode: lastNetworkCode, name: lastNetworkName, sessionStatus: "ACTIVE" };
     },
