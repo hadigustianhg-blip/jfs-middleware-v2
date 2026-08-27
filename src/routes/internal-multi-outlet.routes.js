@@ -55,6 +55,7 @@ function inferMiddlewareStage(err) {
   if (
     code === "UNAUTHORIZED" ||
     code === "LOGIN_FAILED" ||
+    code === "JFS_LOGIN_FAILED" ||
     code === "AUTH_TOKEN_MISSING" ||
     msg.includes("login") ||
     msg.includes("auth") ||
@@ -106,6 +107,16 @@ function extractUpstreamStatus(err) {
     }
   }
   return undefined;
+}
+
+function logScopedConnectionFailure(operation, err) {
+  const upstreamStatus = extractUpstreamStatus(err);
+  console.error(`[JFS][${operation}] failed`, {
+    errorType: err instanceof Error ? err.name : typeof err,
+    errorCode: err?.code || "UNKNOWN",
+    stage: inferMiddlewareStage(err),
+    ...(upstreamStatus ? { upstreamStatus } : {})
+  });
 }
 
 function createInternalMultiOutletRouter({
@@ -178,7 +189,12 @@ function createInternalMultiOutletRouter({
       const result = await req.outletContext.authManager.reconnect();
       return res.json({ success: true, data: result });
     } catch (err) {
-      return res.status(401).json({ success: false, error: "JFS_SCOPED_RECONNECT_FAILED", message: err.message });
+      logScopedConnectionFailure("SCOPED_RECONNECT", err);
+      return res.status(401).json({
+        success: false,
+        error: "JFS_SCOPED_RECONNECT_FAILED",
+        message: "Scoped JFS reconnect failed."
+      });
     }
   });
 
@@ -187,7 +203,12 @@ function createInternalMultiOutletRouter({
       const result = await req.outletContext.authManager.testConnection();
       return res.json({ success: true, data: result });
     } catch (err) {
-      return res.status(401).json({ success: false, error: "JFS_SCOPED_TEST_FAILED", message: err.message });
+      logScopedConnectionFailure("SCOPED_TEST_CONNECTION", err);
+      return res.status(401).json({
+        success: false,
+        error: "JFS_SCOPED_TEST_FAILED",
+        message: "Scoped JFS connection test failed."
+      });
     }
   });
 

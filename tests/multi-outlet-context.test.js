@@ -2,6 +2,8 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const { createJfsOutletContext, stableDeviceNo } = require("../src/context/jfs-outlet-context");
 const axios = require("axios");
 const { OutletContextRegistry } = require("../src/context/outlet-context-registry");
@@ -53,6 +55,62 @@ test("scoped reconnect refreshes only its context and preserves global AUTH_TOKE
   assert.equal(callsB, 0);
   assert.equal(process.env.AUTH_TOKEN, "GLOBAL_UNCHANGED");
   if (original === undefined) delete process.env.AUTH_TOKEN; else process.env.AUTH_TOKEN = original;
+});
+
+test("scoped reconnect delegates login contract to the shared auth engine", async () => {
+  let loginRequest;
+  const context = createJfsOutletContext({
+    tenantId: "tenant-shared",
+    outletId: "outlet-shared",
+    outletCode: "SUM001A",
+    account: "ACCOUNT",
+    password: "PASSWORD",
+    fetcher: async (url, options) => {
+      loginRequest = { url, options };
+      return {
+        status: 200,
+        data: {
+          code: 1,
+          succ: true,
+          fail: false,
+          data: { token: "SHARED_TOKEN", networkCode: "SUM001A", name: "Shared Network" }
+        }
+      };
+    }
+  });
+
+  const reconnect = await context.authManager.reconnect();
+  assert.equal(reconnect.connected, true);
+  assert.equal(reconnect.networkCode, "SUM001A");
+  assert.equal(reconnect.name, "Shared Network");
+  assert.equal((await context.authManager.testConnection()).connected, true);
+  assert.equal(context.getState().hasToken, true);
+  assert.equal(loginRequest.options.data.deviceNo, context.deviceNo);
+  assert.match(loginRequest.options.headers["User-Agent"], /Chrome\/148/);
+  assert.notEqual(loginRequest.options.headers["User-Agent"], "Mozilla/5.0");
+});
+
+test("JfsOutletContext contains no duplicate HTTP login implementation", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../src/context/jfs-outlet-context.js"), "utf8");
+  assert.match(source, /performJfsLogin/);
+  assert.doesNotMatch(source, /basicdata\/login|createHash\("md5"\)|Routename:\s*"login"|User-Agent/);
+});
+
+test("shared login failures stay classified and fail closed", async () => {
+  const context = createJfsOutletContext({
+    tenantId: "tenant-failure",
+    outletId: "outlet-failure",
+    outletCode: "SUM001A",
+    account: "ACCOUNT",
+    password: "PASSWORD",
+    fetcher: async () => ({ status: 200, data: { code: 405, data: {} } })
+  });
+  await assert.rejects(
+    context.authManager.reconnect(),
+    error => error.code === "JFS_LOGIN_FAILED" && error.message === "JFS login failed"
+  );
+  assert.equal(context.getState().hasToken, false);
+  assert.equal(context.getState().lastFailure.message, "JFS login failed");
 });
 
 test("Single-flight refresh mutex in JfsOutletContext triggers exactly 1 upstream login on 20 concurrent calls", async () => {
@@ -118,7 +176,10 @@ for (const applicationCode of [1, 401, 405]) {
       fetcher: async () => ({ status: 200, data: { code: applicationCode, data: {} } })
     });
 
-    await assert.rejects(ctx.authManager.getAuthToken(), /JFS_LOGIN_FAILED/);
+    await assert.rejects(
+      ctx.authManager.getAuthToken(),
+      error => error.code === "JFS_LOGIN_FAILED" && error.message === "JFS login failed"
+    );
     assert.equal(ctx.getState().hasToken, false);
   });
 }
@@ -133,7 +194,10 @@ test("scoped login rejects malformed and empty-token responses", async () => {
       password: "TEST_PASSWORD",
       fetcher: async () => ({ status: 200, data })
     });
-    await assert.rejects(ctx.authManager.getAuthToken(), /JFS_LOGIN_FAILED/);
+    await assert.rejects(
+      ctx.authManager.getAuthToken(),
+      error => error.code === "JFS_LOGIN_FAILED" && error.message === "JFS login failed"
+    );
     assert.equal(ctx.getState().hasToken, false);
   }
 });
@@ -153,7 +217,10 @@ test("scoped login stores a token only in its own outlet context without global 
   });
 
   assert.equal(await ctxA.authManager.getAuthToken(), "TOKEN_A");
-  await assert.rejects(ctxB.authManager.getAuthToken(), /JFS_LOGIN_FAILED/);
+  await assert.rejects(
+    ctxB.authManager.getAuthToken(),
+    error => error.code === "JFS_LOGIN_FAILED" && error.message === "JFS login failed"
+  );
   assert.equal(ctxA.getState().hasToken, true);
   assert.equal(ctxB.getState().hasToken, false);
   assert.notEqual(await ctxA.authManager.getAuthToken(), process.env.AUTH_TOKEN);

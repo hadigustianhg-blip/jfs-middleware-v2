@@ -2,6 +2,7 @@
 
 const axios = require("axios");
 const crypto = require("node:crypto");
+const { performJfsLogin } = require("../auth/jfs-auth-manager");
 const { externalRequest } = require("../utils/request");
 
 const DEVICE_NAMESPACE = "nextgen:jfs:scoped-device:v1";
@@ -62,47 +63,22 @@ function createJfsOutletContext({
         }
 
         try {
-          const loginUrl = `${jfsBaseUrl}/basicdata/login`;
-          const passwordHash = /^[a-f0-9]{32}$/i.test(scopedPassword)
-            ? scopedPassword.toLowerCase()
-            : crypto.createHash("md5").update(scopedPassword, "utf8").digest("hex").toLowerCase();
-          const res = await resolvedFetcher(loginUrl, {
-            method: "POST",
-            headers: {
-              "Accept": "application/json, text/plain, */*",
-              "Content-Type": "application/json;charset=UTF-8",
-              "Lang": "ID",
-              "Langtype": "ID",
-              "Routename": "login",
-              "User-Agent": "Mozilla/5.0"
-            },
-            data: {
-              account: scopedAccount,
-              password: passwordHash,
-              captchaToken: "",
-              deviceNo,
-              countryId: "1"
-            }
+          const profile = await performJfsLogin({
+            account: scopedAccount,
+            password: scopedPassword,
+            deviceNo,
+            requestFn: options => resolvedFetcher(options.url, {
+              method: options.method,
+              headers: options.headers,
+              data: options.body
+            })
           });
-
-          const token = res.data?.data?.token;
-          const validToken = typeof token === "string" && token.trim().length > 0;
-          if (res.status !== 200 || !validToken) {
-            const errMessage = res.data?.msg || `JFS login failed with status ${res.status}`;
-            lastFailure = { occurredAt: new Date(), message: errMessage };
-            throw new Error(`JFS_LOGIN_FAILED: ${errMessage}`);
-          }
-
-          currentToken = token;
-          lastNetworkCode = typeof res.data?.data?.networkCode === "string"
-            ? res.data.data.networkCode.trim()
-            : lastNetworkCode;
-          lastNetworkName = typeof res.data?.data?.name === "string"
-            ? res.data.data.name.trim()
-            : lastNetworkName;
+          currentToken = profile.token;
+          lastNetworkCode = profile.networkCode || lastNetworkCode;
+          lastNetworkName = profile.name || lastNetworkName;
           lastLoginAt = new Date();
           lastFailure = null;
-          return currentToken;
+          return profile.token;
         } catch (err) {
           lastFailure = { occurredAt: new Date(), message: err.message };
           throw err;
