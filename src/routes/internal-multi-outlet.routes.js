@@ -250,7 +250,7 @@ function createInternalMultiOutletRouter({
         }
 
         const invalidRuntimeOptions = err.code === "FORBIDDEN_RUNTIME_OPTION" || err.code === "INVALID_RUNTIME_OPTIONS" || err.code === "INVALID_WAYBILL_NO";
-        const notFound = err.code === "WAYBILL_TRACKING_NOT_FOUND" || err.code === "WAYBILL_DETAIL_NOT_FOUND";
+        const notFound = err.code === "WAYBILL_TRACKING_NOT_FOUND" || err.code === "WAYBILL_DETAIL_NOT_FOUND" || err.code === "INVALID_OMS_SCHEDULING_DETAIL_RESPONSE";
 
         if ((op === "WAYBILL_TRACKING" || op === "WAYBILL_DETAIL") && !invalidRuntimeOptions && !notFound) {
           const errorType = err instanceof Error ? err.name : typeof err;
