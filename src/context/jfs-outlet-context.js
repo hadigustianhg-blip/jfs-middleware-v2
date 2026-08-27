@@ -6,6 +6,40 @@ const { externalRequest } = require("../utils/request");
 
 const DEVICE_NAMESPACE = "nextgen:jfs:scoped-device:v1";
 
+function shortFingerprint(value) {
+  return crypto.createHash("sha256").update(String(value)).digest("hex").slice(0, 10);
+}
+
+function logLoginMetadata(stage, { account, password, deviceNo, headers, response }) {
+  const payload = response?.data;
+  const profile = payload?.data;
+  console.info(`[JFS][LOGIN_RUNTIME] ${stage}`, {
+    environment: process.env.RAILWAY_ENVIRONMENT_NAME || process.env.NODE_ENV || "unknown",
+    endpointHost: "jfsgw.jtcargo.co.id",
+    endpointPath: "/basicdata/login",
+    method: "POST",
+    headerNames: Object.keys(headers).sort(),
+    userAgent: headers["User-Agent"],
+    routename: headers.Routename,
+    lang: headers.Lang,
+    langtype: headers.Langtype,
+    bodyKeyNames: ["account", "password", "captchaToken", "deviceNo", "countryId"],
+    deviceFingerprint: shortFingerprint(deviceNo),
+    accountFingerprint: shortFingerprint(String(account).trim()),
+    passwordMode: /^[a-f0-9]{32}$/i.test(password) ? "ALREADY_MD5" : "RAW_TO_HASH",
+    ...(response ? {
+      httpStatus: response.status,
+      appCode: payload?.code,
+      succ: payload?.succ,
+      fail: payload?.fail,
+      tokenPresent: Boolean(profile?.token),
+      networkCodePresent: Boolean(profile?.networkCode),
+      responseShapeKeys: payload && typeof payload === "object" ? Object.keys(payload).sort() : [],
+      profileShapeKeys: profile && typeof profile === "object" ? Object.keys(profile).sort() : []
+    } : {})
+  });
+}
+
 function stableDeviceNo(tenantId, outletId, provider = "JFS") {
   const digest = crypto.createHash("sha256")
     .update(`${DEVICE_NAMESPACE}:${tenantId}:${outletId}:${provider}`)
@@ -66,16 +100,20 @@ function createJfsOutletContext({
           const passwordHash = /^[a-f0-9]{32}$/i.test(scopedPassword)
             ? scopedPassword.toLowerCase()
             : crypto.createHash("md5").update(scopedPassword, "utf8").digest("hex").toLowerCase();
+          const loginHeaders = {
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json;charset=UTF-8",
+            "Lang": "ID",
+            "Langtype": "ID",
+            "Routename": "login",
+            "User-Agent": "Mozilla/5.0"
+          };
+          logLoginMetadata("request", {
+            account: scopedAccount, password: scopedPassword, deviceNo, headers: loginHeaders
+          });
           const res = await resolvedFetcher(loginUrl, {
             method: "POST",
-            headers: {
-              "Accept": "application/json, text/plain, */*",
-              "Content-Type": "application/json;charset=UTF-8",
-              "Lang": "ID",
-              "Langtype": "ID",
-              "Routename": "login",
-              "User-Agent": "Mozilla/5.0"
-            },
+            headers: loginHeaders,
             data: {
               account: scopedAccount,
               password: passwordHash,
@@ -83,6 +121,9 @@ function createJfsOutletContext({
               deviceNo,
               countryId: "1"
             }
+          });
+          logLoginMetadata("response", {
+            account: scopedAccount, password: scopedPassword, deviceNo, headers: loginHeaders, response: res
           });
 
           const token = res.data?.data?.token;
