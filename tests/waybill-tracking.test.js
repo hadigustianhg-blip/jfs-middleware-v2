@@ -204,6 +204,44 @@ test("tracking uses only its supplied outlet context and refreshes app 401 once"
   assert.equal(secondContext.state.refreshes, 0);
 });
 
+test("tracking bypasses eager top-level getAuthToken call and calls getAuthToken only once via executeWithScopedAuth", async () => {
+  const context = scopedContext("SCOPED_OK_TOKEN");
+  let getTokenCalls = 0;
+  context.authManager.getAuthToken = async () => {
+    getTokenCalls += 1;
+    return context.state.token;
+  };
+
+  const requestFn = async options => {
+    assert.equal(options.headers.Authtoken, "SCOPED_OK_TOKEN");
+    return { status: 200, data: successResponse([trackingEvent()]), headers: {} };
+  };
+
+  const result = await executeMultiOutletScraper(
+    context,
+    "WAYBILL_TRACKING",
+    { waybillNo: WAYBILL_NO },
+    { requestFn }
+  );
+
+  assert.equal(result.waybillNo, WAYBILL_NO);
+  assert.equal(getTokenCalls, 1);
+
+  const legacyContext = scopedContext("LEGACY_TOKEN");
+  let legacyCalls = 0;
+  legacyContext.authManager.getAuthToken = async () => {
+    legacyCalls += 1;
+    return legacyContext.state.token;
+  };
+
+  await executeMultiOutletScraper(
+    legacyContext,
+    "PICKUP",
+    { mockData: [] }
+  );
+  assert.equal(legacyCalls, 1);
+});
+
 test("tracking implementation has no global token, mock, database, hardcoded outlet, or raw logging path", () => {
   const files = [
     "src/scrapers/waybill-tracking.scraper.js",

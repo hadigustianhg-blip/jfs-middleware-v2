@@ -39,6 +39,47 @@ function scopedRequestFn(requestFn) {
 }
 
 async function executeMultiOutletScraper(context, operation, options = {}, dependencies = {}) {
+  if (
+    operation === "OMS_SCHEDULING_LIST" ||
+    operation === "OMS_SCHEDULING_DETAIL" ||
+    operation === "SENSITIVE_DETAIL" ||
+    operation === "WAYBILL_TRACKING" ||
+    operation === "WAYBILL_DETAIL"
+  ) {
+    switch (operation) {
+      case "OMS_SCHEDULING_LIST":
+        return executeWithScopedAuth(context, scopedToken =>
+          scrapeOmsSchedulingList(options, scopedToken, scopedRequestFn(dependencies.requestFn))
+        );
+
+      case "OMS_SCHEDULING_DETAIL":
+        return executeWithScopedAuth(context, scopedToken =>
+          scrapeOmsSchedulingDetail(options, scopedToken, scopedRequestFn(dependencies.requestFn))
+        );
+
+      case "SENSITIVE_DETAIL":
+        return executeWithScopedAuth(context, scopedToken => scrapeSensitiveDetail({
+          waybillNo: String(options.waybillNo),
+          authToken: scopedToken,
+          requestFn: scopedRequestFn(dependencies.requestFn)
+        }));
+
+      case "WAYBILL_TRACKING":
+        return executeWithScopedAuth(context, scopedToken => scrapeWaybillTracking({
+          waybillNo: options.waybillNo,
+          authToken: scopedToken,
+          requestFn: scopedRequestFn(dependencies.requestFn)
+        }));
+
+      case "WAYBILL_DETAIL":
+        return executeWithScopedAuth(context, scopedToken => scrapeWaybillDetail({
+          waybillNo: options.waybillNo,
+          authToken: scopedToken,
+          requestFn: scopedRequestFn(dependencies.requestFn)
+        }));
+    }
+  }
+
   const token = await context.authManager.getAuthToken();
   const config = context.config;
 
@@ -314,16 +355,6 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
       }
     }
 
-    case "OMS_SCHEDULING_LIST":
-      return executeWithScopedAuth(context, scopedToken =>
-        scrapeOmsSchedulingList(options, scopedToken, scopedRequestFn(dependencies.requestFn))
-      );
-
-    case "OMS_SCHEDULING_DETAIL":
-      return executeWithScopedAuth(context, scopedToken =>
-        scrapeOmsSchedulingDetail(options, scopedToken, scopedRequestFn(dependencies.requestFn))
-      );
-
     case "INVENTORY":
       return fetchInventoryDetail({
         token,
@@ -358,28 +389,6 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
         authToken: token
       });
     }
-
-    case "SENSITIVE_DETAIL": {
-      return executeWithScopedAuth(context, scopedToken => scrapeSensitiveDetail({
-        waybillNo: String(options.waybillNo),
-        authToken: scopedToken,
-        requestFn: scopedRequestFn(dependencies.requestFn)
-      }));
-    }
-
-    case "WAYBILL_TRACKING":
-      return executeWithScopedAuth(context, scopedToken => scrapeWaybillTracking({
-        waybillNo: options.waybillNo,
-        authToken: scopedToken,
-        requestFn: scopedRequestFn(dependencies.requestFn)
-      }));
-
-    case "WAYBILL_DETAIL":
-      return executeWithScopedAuth(context, scopedToken => scrapeWaybillDetail({
-        waybillNo: options.waybillNo,
-        authToken: scopedToken,
-        requestFn: scopedRequestFn(dependencies.requestFn)
-      }));
 
     default:
       return {

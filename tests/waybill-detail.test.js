@@ -101,6 +101,30 @@ test("detail uses scoped auth and refreshes an application 401 once", async () =
   assert.equal(context.state.refreshes, 1);
 });
 
+test("detail bypasses eager top-level getAuthToken call and calls getAuthToken only once via executeWithScopedAuth", async () => {
+  const context = scopedContext("SCOPED_OK_TOKEN");
+  let getTokenCalls = 0;
+  context.authManager.getAuthToken = async () => {
+    getTokenCalls += 1;
+    return context.state.token;
+  };
+
+  const requestFn = async options => {
+    assert.equal(options.headers.Authtoken, "SCOPED_OK_TOKEN");
+    return { status: 200, data: success(), headers: {} };
+  };
+
+  const result = await executeMultiOutletScraper(
+    context,
+    "WAYBILL_DETAIL",
+    { waybillNo: WAYBILL_NO },
+    { requestFn }
+  );
+
+  assert.equal(result.waybillNo, WAYBILL_NO);
+  assert.equal(getTokenCalls, 1);
+});
+
 test("detail implementation has no database, global token, hardcoded outlet, or logging path", () => {
   const source = fs.readFileSync(path.join(__dirname, "../src/scrapers/waybill-detail.scraper.js"), "utf8");
   assert.doesNotMatch(source, /SUM001A|AUTH_TOKEN|console\.|logger\.|prisma|database|cookie/i);
