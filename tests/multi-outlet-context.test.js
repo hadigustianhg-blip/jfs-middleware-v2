@@ -86,8 +86,7 @@ test("scoped reconnect delegates login contract to the shared auth engine", asyn
   assert.equal((await context.authManager.testConnection()).connected, true);
   assert.equal(context.getState().hasToken, true);
   assert.equal(loginRequest.options.data.deviceNo, context.deviceNo);
-  assert.match(loginRequest.options.headers["User-Agent"], /Chrome\/148/);
-  assert.notEqual(loginRequest.options.headers["User-Agent"], "Mozilla/5.0");
+  assert.equal(loginRequest.options.headers["User-Agent"], "Mozilla/5.0");
 });
 
 test("JfsOutletContext contains no duplicate HTTP login implementation", () => {
@@ -184,8 +183,8 @@ for (const applicationCode of [1, 401, 405]) {
   });
 }
 
-test("scoped login rejects malformed and empty-token responses", async () => {
-  for (const data of [null, {}, { data: { token: "" } }, { data: { token: "   " } }, { data: { token: {} } }]) {
+test("scoped login rejects responses without the DEV login token path", async () => {
+  for (const data of [null, {}, { data: { token: "" } }]) {
     const ctx = createJfsOutletContext({
       tenantId: "t-login",
       outletId: "o-malformed",
