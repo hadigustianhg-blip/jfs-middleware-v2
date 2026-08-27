@@ -10,6 +10,25 @@ function shortFingerprint(value) {
   return crypto.createHash("sha256").update(String(value)).digest("hex").slice(0, 10);
 }
 
+function valueMetadata(value) {
+  const stringValue = typeof value === "string" ? value : String(value ?? "");
+  return {
+    type: typeof value,
+    length: stringValue.length,
+    empty: stringValue.length === 0,
+    fingerprint: shortFingerprint(stringValue)
+  };
+}
+
+function classifyLoginMessage(message) {
+  const text = typeof message === "string" ? message.toLowerCase() : "";
+  if (/captcha|verify|verification|challenge/.test(text)) return "VERIFICATION_REQUIRED";
+  if (/device|terminal|equipment/.test(text)) return "DEVICE_REJECTED";
+  if (/elsewhere|already.*login|session|online/.test(text)) return "SESSION_CONFLICT";
+  if (/account|password|credential|user/.test(text)) return "CREDENTIAL_REJECTED";
+  return text ? "OTHER_JFS_REJECTION" : "NO_MESSAGE";
+}
+
 function logLoginMetadata(stage, { account, password, deviceNo, headers, response }) {
   const payload = response?.data;
   const profile = payload?.data;
@@ -27,6 +46,16 @@ function logLoginMetadata(stage, { account, password, deviceNo, headers, respons
     deviceFingerprint: shortFingerprint(deviceNo),
     accountFingerprint: shortFingerprint(String(account).trim()),
     passwordMode: /^[a-f0-9]{32}$/i.test(password) ? "ALREADY_MD5" : "RAW_TO_HASH",
+    payloadMetadata: {
+      account: valueMetadata(String(account).trim()),
+      passwordBeforeHash: valueMetadata(password),
+      passwordAfterHash: valueMetadata(/^[a-f0-9]{32}$/i.test(password)
+        ? password.toLowerCase()
+        : crypto.createHash("md5").update(password, "utf8").digest("hex").toLowerCase()),
+      deviceNo: valueMetadata(deviceNo),
+      captchaToken: valueMetadata(""),
+      countryId: valueMetadata("1")
+    },
     ...(response ? {
       httpStatus: response.status,
       appCode: payload?.code,
@@ -35,7 +64,8 @@ function logLoginMetadata(stage, { account, password, deviceNo, headers, respons
       tokenPresent: Boolean(profile?.token),
       networkCodePresent: Boolean(profile?.networkCode),
       responseShapeKeys: payload && typeof payload === "object" ? Object.keys(payload).sort() : [],
-      profileShapeKeys: profile && typeof profile === "object" ? Object.keys(profile).sort() : []
+      profileShapeKeys: profile && typeof profile === "object" ? Object.keys(profile).sort() : [],
+      messageClass: classifyLoginMessage(payload?.msg)
     } : {})
   });
 }
