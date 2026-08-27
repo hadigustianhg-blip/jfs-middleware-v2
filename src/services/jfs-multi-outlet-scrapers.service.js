@@ -8,6 +8,8 @@ const { fetchAgingSignReport } = require("./aging-sign.service");
 const { fetchWaybillStatusBatch } = require("./waybill-status.service");
 const { scrapeOrderList } = require("../scrapers/order-scheduling.scraper");
 const { scrapeSensitiveDetail } = require("../scrapers/sensitive.scraper");
+const { scrapeWaybillTracking } = require("../scrapers/waybill-tracking.scraper");
+const { scrapeWaybillDetail } = require("../scrapers/waybill-detail.scraper");
 const { assertJfsApplicationAuthorized } = require("../utils/request");
 const {
   scrapeOmsSchedulingDetail,
@@ -356,6 +358,20 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
         authToken: token
       });
     }
+
+    case "WAYBILL_TRACKING":
+      return executeWithScopedAuth(context, scopedToken => scrapeWaybillTracking({
+        waybillNo: options.waybillNo,
+        authToken: scopedToken,
+        requestFn: scopedRequestFn(dependencies.requestFn)
+      }));
+
+    case "WAYBILL_DETAIL":
+      return executeWithScopedAuth(context, scopedToken => scrapeWaybillDetail({
+        waybillNo: options.waybillNo,
+        authToken: scopedToken,
+        requestFn: scopedRequestFn(dependencies.requestFn)
+      }));
 
     default:
       return {

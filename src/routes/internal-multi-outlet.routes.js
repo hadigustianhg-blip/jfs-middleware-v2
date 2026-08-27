@@ -5,6 +5,32 @@ const { trustedOutletContextMiddleware } = require("../middleware/trusted-outlet
 const { executeMultiOutletScraper } = require("../services/jfs-multi-outlet-scrapers.service");
 const { globalRegistry } = require("../context/outlet-context-registry");
 
+const OPERATION_FIELDS = {
+  WAYBILL_TRACKING: ["waybillNo"],
+  WAYBILL_DETAIL: ["waybillNo"]
+};
+
+function validateOperationOptions(operation, value) {
+  if (!(operation in OPERATION_FIELDS)) return value;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw Object.assign(new Error("Request body must be an object"), { code: "INVALID_RUNTIME_OPTIONS" });
+  }
+  const allowed = new Set(OPERATION_FIELDS[operation]);
+  for (const field of Object.keys(value)) {
+    if (!allowed.has(field)) {
+      throw Object.assign(new Error(`Runtime option ${field} is not allowed for ${operation}`), {
+        code: "FORBIDDEN_RUNTIME_OPTION",
+        field
+      });
+    }
+  }
+  const waybillNo = value.waybillNo;
+  if (typeof waybillNo !== "string" || !/^[A-Za-z0-9]{1,100}$/.test(waybillNo.trim())) {
+    throw Object.assign(new Error("waybillNo is invalid"), { code: "INVALID_WAYBILL_NO" });
+  }
+  return value;
+}
+
 function createInternalMultiOutletRouter({
   getAuthKey = () => process.env.JFS_AUTH_KEY || "",
   registry = globalRegistry
@@ -61,26 +87,31 @@ function createInternalMultiOutletRouter({
     { path: "/waybill-status", op: "WAYBILL_STATUS" },
     { path: "/jfs-waybill-status", op: "WAYBILL_STATUS" },
     { path: "/sender-detail", op: "SENDER_DETAIL" },
-    { path: "/jfs-sender-detail", op: "SENDER_DETAIL" }
+    { path: "/jfs-sender-detail", op: "SENDER_DETAIL" },
+    { path: "/waybill-tracking", op: "WAYBILL_TRACKING" },
+    { path: "/waybill-detail", op: "WAYBILL_DETAIL" }
   ];
 
   for (const { path: routePath, op } of operations) {
     const fullPath = routePath;
     router.post(fullPath, authMiddleware, async (req, res) => {
-      if (op === "OMS_SCHEDULING_DETAIL") {
+      if (op === "OMS_SCHEDULING_DETAIL" || op === "WAYBILL_TRACKING" || op === "WAYBILL_DETAIL") {
         res.set("Cache-Control", "private, no-store, max-age=0");
       }
       try {
-        const result = await executeMultiOutletScraper(req.outletContext, op, req.body || {});
+        const options = validateOperationOptions(op, req.body || {});
+        const result = await executeMultiOutletScraper(req.outletContext, op, options);
         return res.json({
           success: true,
           data: result,
           context: req.outletContext.getState()
         });
       } catch (err) {
-        return res.status(500).json({
+        const invalidRuntimeOptions = err.code === "FORBIDDEN_RUNTIME_OPTION" || err.code === "INVALID_RUNTIME_OPTIONS" || err.code === "INVALID_WAYBILL_NO";
+        const notFound = err.code === "WAYBILL_TRACKING_NOT_FOUND" || err.code === "WAYBILL_DETAIL_NOT_FOUND";
+        return res.status(invalidRuntimeOptions ? 400 : notFound ? 404 : 500).json({
           success: false,
-          error: "SCRAPER_EXECUTION_FAILED",
+          error: invalidRuntimeOptions || notFound ? err.code : "SCRAPER_EXECUTION_FAILED",
           message: err.message
         });
       }
@@ -91,5 +122,7 @@ function createInternalMultiOutletRouter({
 }
 
 module.exports = {
-  createInternalMultiOutletRouter
+  OPERATION_FIELDS,
+  createInternalMultiOutletRouter,
+  validateOperationOptions
 };
