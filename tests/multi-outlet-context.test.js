@@ -2,7 +2,8 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { createJfsOutletContext } = require("../src/context/jfs-outlet-context");
+const { createJfsOutletContext, stableDeviceNo } = require("../src/context/jfs-outlet-context");
+const axios = require("axios");
 const { OutletContextRegistry } = require("../src/context/outlet-context-registry");
 const { trustedOutletContextMiddleware } = require("../src/middleware/trusted-outlet-context.middleware");
 
@@ -20,6 +21,38 @@ test("OutletContextRegistry registers and retrieves context by tenantId and outl
   assert.equal(registry.get("t-1", "o-1"), ctx);
   assert.equal(ctx.tenantId, "t-1");
   assert.equal(ctx.outletCode, "SUM001A");
+});
+
+test("stable device identity is deterministic per scope and distinct across outlets", () => {
+  assert.equal(stableDeviceNo("tenant-a", "outlet-a"), stableDeviceNo("tenant-a", "outlet-a"));
+  assert.notEqual(stableDeviceNo("tenant-a", "outlet-a"), stableDeviceNo("tenant-a", "outlet-b"));
+  const first = createJfsOutletContext({ tenantId: "tenant-a", outletId: "outlet-a", outletCode: "A" });
+  const recreated = createJfsOutletContext({ tenantId: "tenant-a", outletId: "outlet-a", outletCode: "A" });
+  assert.equal(first.deviceNo, recreated.deviceNo);
+});
+
+test("scoped context owns an axios client with no global response interceptors", () => {
+  const context = createJfsOutletContext({ tenantId: "tenant-a", outletId: "outlet-a", outletCode: "A" });
+  assert.notEqual(context.axiosClient, axios);
+  assert.equal(context.axiosClient.interceptors.response.handlers.filter(Boolean).length, 0);
+});
+
+test("scoped reconnect refreshes only its context and preserves global AUTH_TOKEN", async () => {
+  const original = process.env.AUTH_TOKEN;
+  process.env.AUTH_TOKEN = "GLOBAL_UNCHANGED";
+  let callsA = 0;
+  let callsB = 0;
+  const makeFetcher = counter => async () => {
+    counter();
+    return { status: 200, data: { code: 1, data: { token: "SCOPED", networkCode: "NET" } } };
+  };
+  const a = createJfsOutletContext({ tenantId: "t", outletId: "a", outletCode: "A", account: "a", password: "p", fetcher: makeFetcher(() => { callsA += 1; }) });
+  createJfsOutletContext({ tenantId: "t", outletId: "b", outletCode: "B", account: "b", password: "p", fetcher: makeFetcher(() => { callsB += 1; }) });
+  assert.equal((await a.authManager.reconnect()).connected, true);
+  assert.equal(callsA, 1);
+  assert.equal(callsB, 0);
+  assert.equal(process.env.AUTH_TOKEN, "GLOBAL_UNCHANGED");
+  if (original === undefined) delete process.env.AUTH_TOKEN; else process.env.AUTH_TOKEN = original;
 });
 
 test("Single-flight refresh mutex in JfsOutletContext triggers exactly 1 upstream login on 20 concurrent calls", async () => {
@@ -204,65 +237,4 @@ test("trustedOutletContextMiddleware rejects invalid X-Auth-Key", async () => {
 
   assert.equal(statusCode, 401);
   assert.equal(jsonBody.error, "UNAUTHORIZED");
-});
-
-test("JfsAuthError has code JFS_LOGIN_FAILED and stage SCOPED_AUTH without secret leakage", async () => {
-  const ctx = createJfsOutletContext({
-    tenantId: "t-err",
-    outletId: "o-err",
-    outletCode: "DEV001",
-    account: "SECRET_ACCOUNT",
-    password: "SECRET_PASSWORD",
-    fetcher: async () => ({ status: 401, data: { code: 401, msg: "Bad creds" } })
-  });
-
-  let thrownError;
-  try {
-    await ctx.authManager.getAuthToken();
-  } catch (err) {
-    thrownError = err;
-  }
-
-  assert.ok(thrownError);
-  assert.equal(thrownError.name, "JfsAuthError");
-  assert.equal(thrownError.code, "JFS_LOGIN_FAILED");
-  assert.equal(thrownError.stage, "SCOPED_AUTH");
-  assert.equal(thrownError.status, 401);
-
-  const serialized = JSON.stringify({
-    name: thrownError.name,
-    code: thrownError.code,
-    stage: thrownError.stage,
-    message: thrownError.message
-  });
-  assert.doesNotMatch(serialized, /SECRET_ACCOUNT|SECRET_PASSWORD|Bad creds/);
-});
-
-test("scoped login extracts token from data.token, token, or data string and reuses stable deviceNo", async () => {
-  let receivedDeviceNo;
-  const ctx = createJfsOutletContext({
-    tenantId: "t-ext",
-    outletId: "o-ext",
-    outletCode: "DEV001",
-    account: "ACC",
-    password: "PWD",
-    fetcher: async (url, options) => {
-      receivedDeviceNo = options.data.deviceNo;
-      return { status: 200, data: { code: 1, token: "TOKEN_DIRECT" } };
-    }
-  });
-
-  const token = await ctx.authManager.getAuthToken();
-  assert.equal(token, "TOKEN_DIRECT");
-  assert.ok(receivedDeviceNo);
-
-  // Clear token and refresh to verify stable deviceNo reuse
-  ctx.authManager.clearToken();
-  let secondDeviceNo;
-  ctx.authManager.fetcher = async (url, options) => {
-    secondDeviceNo = options.data.deviceNo;
-    return { status: 200, data: { code: 1, data: "TOKEN_STRING" } };
-  };
-
-  assert.equal(await ctx.authManager.getAuthToken(), "TOKEN_DIRECT");
 });

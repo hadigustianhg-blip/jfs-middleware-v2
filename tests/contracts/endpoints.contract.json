@@ -213,6 +213,34 @@
       "errorVariants": [["success", "error"]],
       "verifiedByTest": true,
       "sourceAnalyzed": true
+    },
+    "POST /scoped/reconnect": {
+      "status": "modular",
+      "classifications": ["authentication", "security-sensitive", "multi-outlet"],
+      "queryParameters": [],
+      "requiredHeaders": ["X-Auth-Key", "X-JFS-Tenant-Id", "X-JFS-Outlet-Id", "X-JFS-Outlet-Code", "X-JFS-Account", "X-JFS-Password"],
+      "successStatus": 200,
+      "successResponseType": "json",
+      "successTopLevelKeys": ["success", "data"],
+      "errorStatuses": [401],
+      "errorTopLevelKeys": ["success", "error", "message"],
+      "errorVariants": [["success", "error", "message"]],
+      "verifiedByTest": true,
+      "sourceAnalyzed": true
+    },
+    "POST /scoped/test-connection": {
+      "status": "modular",
+      "classifications": ["authentication", "security-sensitive", "multi-outlet"],
+      "queryParameters": [],
+      "requiredHeaders": ["X-Auth-Key", "X-JFS-Tenant-Id", "X-JFS-Outlet-Id", "X-JFS-Outlet-Code"],
+      "successStatus": 200,
+      "successResponseType": "json",
+      "successTopLevelKeys": ["success", "data"],
+      "errorStatuses": [401],
+      "errorTopLevelKeys": ["success", "error", "message"],
+      "errorVariants": [["success", "error", "message"]],
+      "verifiedByTest": true,
+      "sourceAnalyzed": true
     }
   }
 }

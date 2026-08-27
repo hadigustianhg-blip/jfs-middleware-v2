@@ -3,17 +3,13 @@
 const crypto = require("node:crypto");
 
 function safeKeyMatches(receivedKey, expectedKey) {
-  if (!expectedKey || expectedKey.trim() === "") return false;
-  if (
-    typeof receivedKey !== "string" ||
-    typeof expectedKey !== "string" ||
-    !expectedKey
-  ) {
-    return false;
-  }
+  if (!expectedKey || typeof expectedKey !== "string" || expectedKey.trim() === "") return false;
+  if (typeof receivedKey !== "string" || receivedKey.trim() === "") return false;
 
-  const received = Buffer.from(receivedKey);
-  const expected = Buffer.from(expectedKey);
+  const recTrim = receivedKey.trim();
+  const expTrim = expectedKey.trim();
+  const received = Buffer.from(recTrim);
+  const expected = Buffer.from(expTrim);
   return (
     received.length === expected.length &&
     crypto.timingSafeEqual(received, expected)

@@ -38,7 +38,8 @@ function scopedContext(overrides = {}) {
     authManager: {
       async getAuthToken() { tokenCalls += 1; return "SCOPED_TOKEN"; },
       clearToken() {},
-      async refreshLogin() { return "REFRESHED_SCOPED_TOKEN"; }
+      async refreshLogin() { return "REFRESHED_SCOPED_TOKEN"; },
+      async reconnect() { return { connected: true }; }
     },
     tokenCalls: () => tokenCalls,
     ...overrides
@@ -329,6 +330,67 @@ test("OMS scheduling list proceeds after scoped login returns code 1 with a vali
   assert.deepEqual(result, { records: [], total: 0, pagesFetched: 1 });
 });
 
+for (const operation of ["PICKUP", "DISPATCH"]) {
+  test(`scoped ${operation} refreshes application 401 once on its dedicated client`, async () => {
+    let calls = 0;
+    let clears = 0;
+    let refreshes = 0;
+    const context = scopedContext({
+      axiosClient: {
+        async post(_url, _body, config) {
+          calls += 1;
+          if (calls === 1) {
+            assert.match(config.headers.Authtoken || config.headers.authtoken, /STALE/);
+            return { status: 200, data: { code: 401 }, headers: {} };
+          }
+          assert.match(config.headers.Authtoken || config.headers.authtoken, /FRESH/);
+          return { status: 200, data: { code: 0, data: [] }, headers: {} };
+        }
+      },
+      authManager: {
+        async getAuthToken() { return calls === 0 ? "STALE_SCOPED" : "STALE_SCOPED"; },
+        clearToken() { clears += 1; },
+        async refreshLogin() { refreshes += 1; return "FRESH_SCOPED"; }
+      }
+    });
+    const result = await executeMultiOutletScraper(context, operation, { date: "2026-08-24" });
+    assert.equal(result.success, true);
+    assert.equal(calls, 2);
+    assert.equal(clears, 1);
+    assert.equal(refreshes, 1);
+  });
+}
+
+test("OMS scheduling, Pickup, Dispatch, and COD share one scoped context without global token mutation", async () => {
+  const original = process.env.AUTH_TOKEN;
+  process.env.AUTH_TOKEN = "GLOBAL_MUST_REMAIN_UNCHANGED";
+  const tokens = [];
+  const context = scopedContext({
+    axiosClient: {
+      async post(url, _body, config) {
+        tokens.push(config.headers.Authtoken || config.headers.authtoken);
+        assert.match(url, /shippingWaybillList|dispatchWaybill\/list|collection-receipt-detail\/page/);
+        return url.includes("collection-receipt-detail")
+          ? { status: 200, data: { code: 0, data: { records: [] } }, headers: {} }
+          : { status: 200, data: { code: 0, data: [] }, headers: {} };
+      }
+    }
+  });
+  const omsRequest = async options => {
+    tokens.push(options.headers.Authtoken);
+    return { status: 200, data: { code: 0, data: { records: [], total: 0, pages: 0 } } };
+  };
+  await context.authManager.reconnect();
+  await executeMultiOutletScraper(context, "OMS_SCHEDULING_LIST", listInput, { requestFn: omsRequest });
+  await executeMultiOutletScraper(context, "PICKUP", { date: "2026-08-24" });
+  await executeMultiOutletScraper(context, "DISPATCH", { date: "2026-08-24" });
+  await executeMultiOutletScraper(context, "COD", { date: "2026-08-24" });
+  await executeMultiOutletScraper(context, "OMS_SCHEDULING_LIST", listInput, { requestFn: omsRequest });
+  assert.deepEqual(tokens, ["SCOPED_TOKEN", "SCOPED_TOKEN", "SCOPED_TOKEN", "SCOPED_TOKEN", "SCOPED_TOKEN"]);
+  assert.equal(process.env.AUTH_TOKEN, "GLOBAL_MUST_REMAIN_UNCHANGED");
+  if (original === undefined) delete process.env.AUTH_TOKEN; else process.env.AUTH_TOKEN = original;
+});
+
 test("scoped routes are protected and registered independently from legacy routes", () => {
   const router = createInternalMultiOutletRouter({ getAuthKey: () => "KEY" });
   const paths = router.stack.filter(layer => layer.route).map(layer => layer.route.path);
@@ -336,6 +398,8 @@ test("scoped routes are protected and registered independently from legacy route
   assert.ok(paths.includes("/oms-scheduling-detail"));
   assert.ok(paths.includes("/oms"));
   assert.ok(paths.includes("/sender-detail"));
+  assert.ok(paths.includes("/scoped/reconnect"));
+  assert.ok(paths.includes("/scoped/test-connection"));
   for (const path of ["/oms-scheduling-list", "/oms-scheduling-detail"]) {
     const layer = router.stack.find(item => item.route?.path === path);
     assert.equal(layer.route.stack.length, 2);
