@@ -1,6 +1,7 @@
 "use strict";
 
 const axios = require("axios");
+const { performJfsLogin } = require("../auth/jfs-auth-manager");
 
 class JfsAuthError extends Error {
   constructor(message = "JFS_LOGIN_FAILED: Scoped JFS login failed", metadata = {}) {
@@ -78,46 +79,30 @@ function createJfsOutletContext({
         }
 
         try {
-          const loginUrl = `${jfsBaseUrl}/basicdata/login`;
-          const passwordHash = /^[a-f0-9]{32}$/i.test(password)
-            ? password.toLowerCase()
-            : require("node:crypto").createHash("md5").update(password, "utf8").digest("hex").toLowerCase();
-          const res = await resolvedFetcher(loginUrl, {
-            method: "POST",
-            headers: {
-              "Accept": "application/json, text/plain, */*",
-              "Content-Type": "application/json;charset=UTF-8",
-              "Lang": "ID",
-              "Langtype": "ID",
-              "Routename": "login",
-              "User-Agent": "Mozilla/5.0"
-            },
-            data: {
-              account,
-              password: passwordHash,
-              captchaToken: "",
-              deviceNo,
-              countryId: "1"
-            }
+          const adaptedRequestFn = fetcher
+            ? async opts => {
+                const res = await resolvedFetcher(opts.url, {
+                  method: opts.method,
+                  headers: opts.headers,
+                  data: opts.body
+                });
+                return { data: res.data, status: res.status, headers: res.headers };
+              }
+            : undefined;
+
+          const profile = await performJfsLogin({
+            account,
+            password,
+            deviceNo,
+            requestFn: adaptedRequestFn
           });
 
-          const token = extractTokenFromResponse(res);
-          const appCode = res.data?.code;
-          const validAppCode = appCode === undefined || appCode === null || appCode === 0 || appCode === 1;
-
-          if (res.status !== 200 || !validAppCode || !token) {
-            const status = typeof res.status === "number" ? res.status : 401;
-            const safeMsg = "JFS_LOGIN_FAILED: Scoped JFS login failed";
-            lastFailure = { occurredAt: new Date(), message: safeMsg };
-            throw new JfsAuthError(safeMsg, { code: "JFS_LOGIN_FAILED", status });
-          }
-
-          currentToken = token;
+          currentToken = profile.token;
           lastLoginAt = new Date();
           lastFailure = null;
           return currentToken;
         } catch (err) {
-          const status = typeof err.status === "number" ? err.status : (err.response?.status || 500);
+          const status = typeof err.status === "number" ? err.status : (err.response?.status || 401);
           const safeError = err instanceof JfsAuthError
             ? err
             : new JfsAuthError("JFS_LOGIN_FAILED: Scoped JFS login failed", { code: "JFS_LOGIN_FAILED", status });
