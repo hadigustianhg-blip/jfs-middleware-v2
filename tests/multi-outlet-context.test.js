@@ -140,7 +140,8 @@ test("new scoped credentials invalidate an in-flight login and win the reconnect
 
 test("JfsOutletContext contains no duplicate HTTP login implementation", () => {
   const source = fs.readFileSync(path.join(__dirname, "../src/context/jfs-outlet-context.js"), "utf8");
-  assert.match(source, /performJfsLogin/);
+  assert.match(source, /createJfsAuthManager/);
+  assert.doesNotMatch(source, /performJfsLogin/);
   assert.doesNotMatch(source, /basicdata\/login|createHash\("md5"\)|Routename:\s*"login"|User-Agent/);
 });
 

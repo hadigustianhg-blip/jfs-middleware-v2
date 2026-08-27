@@ -121,6 +121,20 @@ test("refresh login reuses the stored hash and deduplicates concurrent calls", a
   assert.equal(passwords[1], passwords[0]);
 });
 
+test("a raw 32-character hex password is still MD5 hashed exactly once", async () => {
+  const rawPassword = "abcdef0123456789abcdef0123456789";
+  let sentPassword;
+  const manager = createJfsAuthManager({
+    requestFn: async options => {
+      sentPassword = options.body.password;
+      return { data: { data: { token: "TOKEN" } } };
+    }
+  });
+  await manager.loginWithCredentials("ACCOUNT", rawPassword);
+  assert.equal(sentPassword, hashPassword(rawPassword));
+  assert.notEqual(sentPassword, rawPassword);
+});
+
 test("auth endpoint rejects a wrong key without attempting login", async () => {
   let calls = 0;
   const controller = createJfsAuthController({

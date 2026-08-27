@@ -2,7 +2,7 @@
 
 const axios = require("axios");
 const crypto = require("node:crypto");
-const { performJfsLogin } = require("../auth/jfs-auth-manager");
+const { createJfsAuthManager } = require("../auth/jfs-auth-manager");
 const { externalRequest } = require("../utils/request");
 
 const DEVICE_NAMESPACE = "nextgen:jfs:scoped-device:v1";
@@ -32,13 +32,8 @@ function createJfsOutletContext({
     throw new TypeError("tenantId, outletId, and outletCode are required for JfsOutletContext");
   }
 
-  let currentToken = initialToken;
   let lastLoginAt = initialToken ? new Date() : null;
   let lastFailure = null;
-  let refreshPromise = null;
-  let credentialGeneration = 0;
-  let scopedAccount = account;
-  let scopedPassword = password;
   let lastNetworkCode = networkCode || null;
   let lastNetworkName = null;
   const configuredDeviceNo = process.env.JFS_DEVICE_NO?.trim();
@@ -50,78 +45,62 @@ function createJfsOutletContext({
     return { status: response.status, data: response.data, headers: response.headers };
   });
 
+  const sharedAuthManager = createJfsAuthManager({
+    initialToken: initialToken || "",
+    deviceNo,
+    requestFn: options => resolvedFetcher(options.url, {
+      method: options.method,
+      headers: options.headers,
+      data: options.body
+    })
+  });
+  if (account && password) {
+    sharedAuthManager.setCredentials(account, password);
+    if (initialToken) sharedAuthManager.setToken(initialToken);
+  }
+
+  function applyProfile(profile) {
+    lastNetworkCode = profile.networkCode || lastNetworkCode;
+    lastNetworkName = profile.name || lastNetworkName;
+    lastLoginAt = new Date();
+    lastFailure = null;
+    return profile.token;
+  }
+
+  async function captureLogin(login) {
+    try {
+      return applyProfile(await login());
+    } catch (err) {
+      lastFailure = { occurredAt: new Date(), message: err.message };
+      throw err;
+    }
+  }
+
   const authManager = {
     async getAuthToken() {
-      if (currentToken) return currentToken;
+      if (sharedAuthManager.getToken()) return sharedAuthManager.getToken();
       return this.refreshLogin();
     },
 
     async refreshLogin() {
-      if (refreshPromise) return refreshPromise;
-
-      const activeRefresh = (async () => {
-        const loginGeneration = credentialGeneration;
-        if (!scopedAccount || !scopedPassword) {
-          throw new Error(`JFS credentials not provided for outlet ${outletCode}`);
-        }
-
-        try {
-          const profile = await performJfsLogin({
-            account: scopedAccount,
-            password: scopedPassword,
-            deviceNo,
-            requestFn: options => resolvedFetcher(options.url, {
-              method: options.method,
-              headers: options.headers,
-              data: options.body
-            })
-          });
-          if (loginGeneration !== credentialGeneration) {
-            const staleError = new Error("JFS credentials changed during login");
-            staleError.code = "JFS_STALE_CREDENTIAL_LOGIN";
-            throw staleError;
-          }
-          currentToken = profile.token;
-          lastNetworkCode = profile.networkCode || lastNetworkCode;
-          lastNetworkName = profile.name || lastNetworkName;
-          lastLoginAt = new Date();
-          lastFailure = null;
-          return profile.token;
-        } catch (err) {
-          lastFailure = { occurredAt: new Date(), message: err.message };
-          throw err;
-        }
-      })();
-      refreshPromise = activeRefresh;
-
-      try {
-        return await activeRefresh;
-      } finally {
-        if (refreshPromise === activeRefresh) refreshPromise = null;
-      }
+      return captureLogin(() => sharedAuthManager.refreshLogin());
     },
 
     setToken(token) {
-      currentToken = token;
+      sharedAuthManager.setToken(token);
       lastLoginAt = new Date();
     },
 
     clearToken() {
-      currentToken = null;
+      sharedAuthManager.clearToken();
     },
 
     setCredentials(nextAccount, nextPassword) {
-      if (!nextAccount || !nextPassword) throw new Error("JFS credentials are required");
-      scopedAccount = String(nextAccount).trim();
-      scopedPassword = String(nextPassword);
-      currentToken = null;
-      credentialGeneration += 1;
-      refreshPromise = null;
+      sharedAuthManager.setCredentials(nextAccount, nextPassword);
     },
 
     async reconnect() {
-      currentToken = null;
-      await this.refreshLogin();
+      await captureLogin(() => sharedAuthManager.reconnect());
       return { connected: true, networkCode: lastNetworkCode, name: lastNetworkName, sessionStatus: "ACTIVE" };
     },
 
@@ -200,7 +179,7 @@ function createJfsOutletContext({
         outletId,
         outletCode,
         networkCode: networkCode || outletCode,
-        hasToken: Boolean(currentToken),
+        hasToken: Boolean(sharedAuthManager.getToken()),
         networkCode: lastNetworkCode,
         lastLoginAt,
         lastFailure

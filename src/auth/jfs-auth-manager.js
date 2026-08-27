@@ -44,11 +44,11 @@ function logLoginMetadata(stage, { account, password, deviceNo, headers, respons
     bodyKeyNames: ["account", "password", "captchaToken", "deviceNo", "countryId"],
     deviceFingerprint: shortFingerprint(deviceNo),
     accountFingerprint: shortFingerprint(String(account).trim()),
-    passwordMode: /^[a-f0-9]{32}$/i.test(password) ? "ALREADY_MD5" : "RAW_TO_HASH",
+    passwordMode: "RAW_TO_HASH",
     payloadMetadata: {
       account: valueMetadata(String(account).trim()),
       passwordBeforeHash: valueMetadata(password),
-      passwordAfterHash: valueMetadata(/^[a-f0-9]{32}$/i.test(password) ? password.toLowerCase() : hashPassword(password)),
+      passwordAfterHash: valueMetadata(hashPassword(password)),
       deviceNo: valueMetadata(deviceNo),
       captchaToken: valueMetadata(""),
       countryId: valueMetadata("1")
@@ -104,9 +104,7 @@ async function performJfsLogin({
 
   try {
     const headers = buildLoginHeaders();
-    const passwordHash = /^[a-f0-9]{32}$/i.test(password)
-      ? password.toLowerCase()
-      : hashPassword(password);
+    const passwordHash = hashPassword(password);
     logLoginMetadata("request", { account, password, deviceNo, headers });
     const response = await requestFn({
       method: "POST",
@@ -149,6 +147,7 @@ function createJfsAuthManager({
   let cachedToken = initialToken;
   let credentials;
   let refreshPromise;
+  let credentialGeneration = 0;
 
   function setToken(token) {
     cachedToken = token || "";
@@ -160,6 +159,7 @@ function createJfsAuthManager({
       throw createLoginError();
     }
 
+    const loginGeneration = credentialGeneration;
     const profile = await performJfsLogin({
       account: credentials.account,
       password: credentials.password,
@@ -167,11 +167,17 @@ function createJfsAuthManager({
       requestFn
     });
 
+    if (loginGeneration !== credentialGeneration) {
+      const error = new Error("JFS credentials changed during login");
+      error.code = "JFS_STALE_CREDENTIAL_LOGIN";
+      throw error;
+    }
+
     setToken(profile.token);
     return profile;
   }
 
-  async function loginWithCredentials(account, password) {
+  function setCredentials(account, password) {
     if (
       typeof account !== "string" ||
       !account.trim() ||
@@ -181,18 +187,23 @@ function createJfsAuthManager({
       throw createLoginError();
     }
 
-    credentials = {
-      account: account.trim(),
-      password
-    };
+    credentials = { account: account.trim(), password };
+    credentialGeneration += 1;
+    setToken("");
+    refreshPromise = undefined;
+  }
+
+  async function loginWithCredentials(account, password) {
+    setCredentials(account, password);
     return performLogin();
   }
 
   async function refreshLogin() {
     if (!refreshPromise) {
-      refreshPromise = performLogin().finally(() => {
-        refreshPromise = undefined;
+      const activeRefresh = performLogin().finally(() => {
+        if (refreshPromise === activeRefresh) refreshPromise = undefined;
       });
+      refreshPromise = activeRefresh;
     }
     return refreshPromise;
   }
@@ -200,8 +211,14 @@ function createJfsAuthManager({
   return {
     getToken: () => cachedToken,
     hasCredentials: () => Boolean(credentials),
+    clearToken: () => setToken(""),
     loginWithCredentials,
     refreshLogin,
+    reconnect: async () => {
+      setToken("");
+      return performLogin();
+    },
+    setCredentials,
     setToken
   };
 }
