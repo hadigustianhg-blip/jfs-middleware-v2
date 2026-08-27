@@ -189,6 +189,13 @@ function createInternalMultiOutletRouter({
       const result = await req.outletContext.authManager.reconnect();
       return res.json({ success: true, data: result });
     } catch (err) {
+      if (err.code === "JFS_EMERGENCY_TOKEN_EXPIRED" || err.code === "JFS_EMERGENCY_MODE_EXPIRED") {
+        return res.status(err.status || 401).json({
+          success: false,
+          error: err.code,
+          message: err.message
+        });
+      }
       logScopedConnectionFailure("SCOPED_RECONNECT", err);
       return res.status(401).json({
         success: false,
@@ -203,6 +210,13 @@ function createInternalMultiOutletRouter({
       const result = await req.outletContext.authManager.testConnection();
       return res.json({ success: true, data: result });
     } catch (err) {
+      if (err.code === "JFS_EMERGENCY_TOKEN_EXPIRED" || err.code === "JFS_EMERGENCY_MODE_EXPIRED") {
+        return res.status(err.status || 401).json({
+          success: false,
+          error: err.code,
+          message: err.message
+        });
+      }
       logScopedConnectionFailure("SCOPED_TEST_CONNECTION", err);
       return res.status(401).json({
         success: false,
@@ -227,6 +241,14 @@ function createInternalMultiOutletRouter({
           context: req.outletContext.getState()
         });
       } catch (err) {
+        if (err.code === "JFS_EMERGENCY_TOKEN_EXPIRED" || err.code === "JFS_EMERGENCY_MODE_EXPIRED") {
+          return res.status(err.status || 401).json({
+            success: false,
+            error: err.code,
+            message: err.message
+          });
+        }
+
         const invalidRuntimeOptions = err.code === "FORBIDDEN_RUNTIME_OPTION" || err.code === "INVALID_RUNTIME_OPTIONS" || err.code === "INVALID_WAYBILL_NO";
         const notFound = err.code === "WAYBILL_TRACKING_NOT_FOUND" || err.code === "WAYBILL_DETAIL_NOT_FOUND";
 

@@ -88,13 +88,28 @@ function createJfsOutletContext({
     }
   }
 
+const {
+  isEmergencyTokenModeActive,
+  getEmergencyToken,
+  EmergencyTokenError
+} = require("../utils/emergency-token");
+
   const authManager = {
     async getAuthToken() {
+      if (isEmergencyTokenModeActive()) {
+        return getEmergencyToken();
+      }
       if (sharedAuthManager.getToken()) return sharedAuthManager.getToken();
       return this.refreshLogin();
     },
 
     async refreshLogin() {
+      if (isEmergencyTokenModeActive()) {
+        const token = getEmergencyToken();
+        sharedAuthManager.setToken(token);
+        lastLoginAt = new Date();
+        return token;
+      }
       return captureLogin(() => sharedAuthManager.refreshLogin());
     },
 
@@ -104,7 +119,9 @@ function createJfsOutletContext({
     },
 
     clearToken() {
-      sharedAuthManager.clearToken();
+      if (!isEmergencyTokenModeActive()) {
+        sharedAuthManager.clearToken();
+      }
     },
 
     setCredentials(nextAccount, nextPassword) {
@@ -113,8 +130,13 @@ function createJfsOutletContext({
     },
 
     async reconnect() {
-      // In emergency token mode, do not throw away a browser-authorized token
-      // just to perform a fresh login that would trigger Feishu verification.
+      if (isEmergencyTokenModeActive()) {
+        const token = getEmergencyToken();
+        sharedAuthManager.setToken(token);
+        lastLoginAt = new Date();
+        lastFailure = null;
+        return { connected: true, networkCode: lastNetworkCode, name: lastNetworkName, sessionStatus: "ACTIVE" };
+      }
       if (sharedAuthManager.getToken()) {
         lastLoginAt = new Date();
         lastFailure = null;

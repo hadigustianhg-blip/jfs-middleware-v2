@@ -32,7 +32,29 @@ function isScopedUnauthorized(error) {
   return false;
 }
 
+const {
+  isEmergencyTokenModeActive,
+  getEmergencyToken,
+  EmergencyTokenError
+} = require("../utils/emergency-token");
+
 async function executeWithScopedAuth(context, operation) {
+  if (isEmergencyTokenModeActive()) {
+    const token = getEmergencyToken();
+    try {
+      return await operation(token);
+    } catch (error) {
+      if (isScopedUnauthorized(error)) {
+        throw new EmergencyTokenError(
+          "Emergency token JFS ditolak oleh server (401).",
+          "JFS_EMERGENCY_TOKEN_EXPIRED",
+          401
+        );
+      }
+      throw error;
+    }
+  }
+
   let token = await context.authManager.getAuthToken();
   try {
     return await operation(token);

@@ -1,5 +1,11 @@
 "use strict";
 
+const {
+  isEmergencyTokenModeActive,
+  getEmergencyToken,
+  EmergencyTokenError
+} = require("./emergency-token");
+
 function isUnauthorized(error) {
   return (
     error?.code === "UNAUTHORIZED" ||
@@ -14,7 +20,23 @@ async function executeWithAuthRetry({
   refreshAuth,
   operation
 }) {
-  const authToken = getAuthToken();
+  if (isEmergencyTokenModeActive()) {
+    const token = getEmergencyToken();
+    try {
+      return await operation(token);
+    } catch (error) {
+      if (isUnauthorized(error)) {
+        throw new EmergencyTokenError(
+          "Emergency token JFS ditolak oleh server (401).",
+          "JFS_EMERGENCY_TOKEN_EXPIRED",
+          401
+        );
+      }
+      throw error;
+    }
+  }
+
+  const authToken = typeof getAuthToken === "function" ? getAuthToken() : "";
   if (!authToken) {
     const error = new Error("Token kosong");
     error.code = "TOKEN_EMPTY";
