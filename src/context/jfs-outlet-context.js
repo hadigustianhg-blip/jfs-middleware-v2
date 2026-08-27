@@ -60,6 +60,9 @@ function createJfsOutletContext({
       data: options.body
     })
   });
+  if (initialToken) {
+    sharedAuthManager.setToken(initialToken);
+  }
   if (account && password) {
     sharedAuthManager.setCredentials(account, password);
     // setCredentials intentionally invalidates the cached token. Re-seed the
@@ -130,9 +133,14 @@ function createJfsOutletContext({
   const httpClient = {
     async request(config) {
       let token = await authManager.getAuthToken();
+      const baseHeaders = { ...(config.headers || {}) };
+      delete baseHeaders.authorization;
+      delete baseHeaders.Authorization;
+
       const headers = {
-        ...(config.headers || {}),
-        authorization: token
+        ...baseHeaders,
+        AuthToken: token,
+        authtoken: token
       };
 
       try {
@@ -145,8 +153,9 @@ function createJfsOutletContext({
           authManager.clearToken();
           token = await authManager.refreshLogin();
           const retryHeaders = {
-            ...(config.headers || {}),
-            authorization: token
+            ...baseHeaders,
+            AuthToken: token,
+            authtoken: token
           };
           return await resolvedFetcher(config.url, {
             ...config,
@@ -160,8 +169,9 @@ function createJfsOutletContext({
           authManager.clearToken();
           token = await authManager.refreshLogin();
           const retryHeaders = {
-            ...(config.headers || {}),
-            authorization: token
+            ...baseHeaders,
+            AuthToken: token,
+            authtoken: token
           };
           return await resolvedFetcher(config.url, {
             ...config,

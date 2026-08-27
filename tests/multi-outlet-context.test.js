@@ -354,3 +354,50 @@ test("trustedOutletContextMiddleware rejects invalid X-Auth-Key", async () => {
   assert.equal(statusCode, 401);
   assert.equal(jsonBody.error, "UNAUTHORIZED");
 });
+
+test("httpClient sends AuthToken/authtoken, strips authorization, handles 401 retry, and preserves initialToken", async () => {
+  const requests = [];
+  const ctx = createJfsOutletContext({
+    tenantId: "t-http",
+    outletId: "o-http",
+    outletCode: "SUM001A",
+    account: "USER_HTTP",
+    password: "PWD_HTTP",
+    initialToken: "INITIAL_JFS_TOKEN",
+    fetcher: async (url, options) => {
+      requests.push(options);
+      if (requests.length === 1) {
+        return { status: 401, data: { code: 401, message: "Expired" } };
+      }
+      return { status: 200, data: { code: 1, data: { token: "REFRESHED_JFS_TOKEN", networkCode: "NET_HTTP" } } };
+    }
+  });
+
+  assert.equal(await ctx.authManager.getAuthToken(), "INITIAL_JFS_TOKEN");
+
+  const res = await ctx.httpClient.request({
+    url: "https://jfsgw.jtcargo.co.id/networkmanagement/dispatchWaybill/list",
+    method: "POST",
+    headers: {
+      authorization: "OLD_AUTH_HEADER",
+      "Content-Type": "application/json"
+    }
+  });
+
+  assert.equal(requests.length, 3);
+  // requests[0] is initial http request, requests[1] is 401 refresh login, requests[2] is 401 retry http request
+  const initialReq = requests[0];
+  const retryReq = requests[2];
+
+  assert.equal(initialReq.headers.AuthToken, "INITIAL_JFS_TOKEN");
+  assert.equal(initialReq.headers.authtoken, "INITIAL_JFS_TOKEN");
+  assert.equal("authorization" in initialReq.headers, false);
+  assert.equal("Authorization" in initialReq.headers, false);
+
+  assert.equal(retryReq.headers.AuthToken, "REFRESHED_JFS_TOKEN");
+  assert.equal(retryReq.headers.authtoken, "REFRESHED_JFS_TOKEN");
+  assert.equal("authorization" in retryReq.headers, false);
+  assert.equal("Authorization" in retryReq.headers, false);
+
+  assert.equal(res.status, 200);
+});
