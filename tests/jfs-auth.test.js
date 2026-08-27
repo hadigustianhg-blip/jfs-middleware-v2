@@ -323,3 +323,58 @@ test("legacy axios requests refresh a 401 once with the new token", async () => 
     error => error === repeatedError
   );
 });
+
+test("performJfsLogin polls device verification on appCode 143045003 and retries upon approval", async () => {
+  const { performJfsLogin, JFS_LOGIN_URL, JFS_DEVICE_QUERY_URL } = require("../src/auth/jfs-auth-manager");
+
+  const calls = [];
+  let pollAttempts = 0;
+
+  const requestFn = async options => {
+    calls.push(options);
+    if (options.url === JFS_LOGIN_URL) {
+      if (calls.filter(c => c.url === JFS_LOGIN_URL).length === 1) {
+        return {
+          data: {
+            code: 143045003,
+            msg: "Silakan verifikasi perangkat",
+            data: { staffNo: "STAFF123" }
+          }
+        };
+      }
+      return {
+        data: {
+          code: 1,
+          data: {
+            token: "VERIFIED_DEVICE_TOKEN",
+            networkCode: "NET001",
+            name: "VERIFIED USER"
+          }
+        }
+      };
+    }
+    if (options.url === JFS_DEVICE_QUERY_URL) {
+      pollAttempts += 1;
+      assert.equal(options.body.staffNo, "STAFF123");
+      assert.equal(options.body.deviceNo, "TEST_DEVICE_123");
+      // Return status 1 (PENDING) on 1st attempt, status 2 (APPROVED) on 2nd attempt
+      return {
+        data: {
+          code: 0,
+          data: { status: pollAttempts === 1 ? 1 : 2 }
+        }
+      };
+    }
+  };
+
+  const result = await performJfsLogin({
+    account: "STAFF123",
+    password: "TEST_PASSWORD",
+    deviceNo: "TEST_DEVICE_123",
+    requestFn
+  });
+
+  assert.equal(result.token, "VERIFIED_DEVICE_TOKEN");
+  assert.equal(result.networkCode, "NET001");
+  assert.equal(pollAttempts, 2);
+});

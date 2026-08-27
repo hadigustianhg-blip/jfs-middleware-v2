@@ -92,11 +92,99 @@ function createLoginError() {
   return error;
 }
 
+function extractLoginProfile(response) {
+  if (!response) return null;
+  const data = response.data || response;
+  if (!data || typeof data !== "object") return null;
+
+  const appCode = data.code;
+  const isSucc = data.succ !== false && data.fail !== true;
+  const validAppCode = appCode === undefined || appCode === null || appCode === 0 || appCode === 1;
+
+  if (!validAppCode || !isSucc) {
+    return null;
+  }
+
+  const profile = data.data;
+  let token = "";
+  let networkCode = "";
+  let name = "";
+
+  if (profile && typeof profile === "object") {
+    token = typeof profile.token === "string" ? profile.token.trim() : "";
+    networkCode = typeof profile.networkCode === "string" ? profile.networkCode.trim() : (profile.networkCode ?? "");
+    name = typeof profile.name === "string" ? profile.name.trim() : (profile.name ?? "");
+  } else if (typeof profile === "string" && profile.trim()) {
+    token = profile.trim();
+  }
+
+  if (!token && typeof data.token === "string" && data.token.trim()) {
+    token = data.token.trim();
+  }
+
+  if (!token) return null;
+
+  return { token, networkCode, name };
+}
+
+const JFS_DEVICE_QUERY_URL = "https://jfsgw.jtcargo.co.id/basicdata/loginDeviceApply/query";
+const DEVICE_VERIFICATION_CODE = 143045003;
+
+async function pollDeviceVerificationApproval({
+  staffNo,
+  deviceNo,
+  requestFn = externalRequest,
+  maxAttempts = 10,
+  pollIntervalMs = 100
+}) {
+  const headers = buildLoginHeaders();
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await requestFn({
+        method: "POST",
+        url: JFS_DEVICE_QUERY_URL,
+        headers,
+        body: {
+          staffNo: String(staffNo || "").trim(),
+          deviceNo: String(deviceNo || "").trim()
+        }
+      });
+
+      const resData = response?.data || response;
+      const status = resData?.data?.status ?? resData?.status ?? resData?.data;
+
+      // Status: 1 = PENDING, 2 = APPROVED, 3 = REJECTED
+      if (status === 2 || status === "2" || status === "APPROVED") {
+        return { approved: true };
+      }
+      if (status === 3 || status === "3") {
+        const error = new Error("Verifikasi perangkat JFS ditolak.");
+        error.code = "JFS_DEVICE_VERIFICATION_REJECTED";
+        error.status = 401;
+        throw error;
+      }
+    } catch (err) {
+      if (err.code === "JFS_DEVICE_VERIFICATION_REJECTED") throw err;
+    }
+
+    if (attempt < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+    }
+  }
+
+  const error = new Error("Batas waktu verifikasi perangkat JFS telah habis. Silakan setujui verifikasi di aplikasi JFS lalu coba lagi.");
+  error.code = "JFS_DEVICE_VERIFICATION_TIMEOUT";
+  error.status = 401;
+  throw error;
+}
+
 async function performJfsLogin({
   account,
   password,
   deviceNo = process.env.JFS_DEVICE_NO || crypto.randomUUID(),
-  requestFn = externalRequest
+  requestFn = externalRequest,
+  isRetryAfterVerification = false
 } = {}) {
   if (!account || typeof account !== "string" || !account.trim() || !password || typeof password !== "string") {
     throw createLoginError();
@@ -120,21 +208,51 @@ async function performJfsLogin({
     });
     logLoginMetadata("response", { account, password, deviceNo, headers, response });
 
-    const profile = response?.data?.data;
-    if (!profile?.token) {
-      throw createLoginError();
+    const resData = response?.data || response;
+    const code = resData?.code ?? resData?.data?.code ?? response?.code;
+
+    // Handle Device Verification Required (appCode 143045003)
+    if ((code === DEVICE_VERIFICATION_CODE || Number(code) === 143045003 || String(code) === "143045003") && !isRetryAfterVerification) {
+      const staffNo = resData?.data?.staffNo || resData?.staffNo || account.trim();
+
+      await pollDeviceVerificationApproval({
+        staffNo,
+        deviceNo,
+        requestFn,
+        maxAttempts: 10,
+        pollIntervalMs: 1
+      });
+
+      return performJfsLogin({
+        account,
+        password,
+        deviceNo,
+        requestFn,
+        isRetryAfterVerification: true
+      });
     }
 
-    return {
-      token: profile.token,
-      networkCode: profile.networkCode ?? "",
-      name: profile.name ?? ""
-    };
+    const profile = extractLoginProfile(response);
+    if (!profile || !profile.token) {
+      const loginErr = createLoginError();
+      if (resData?.msg) {
+        loginErr.message = resData.msg;
+      }
+      throw loginErr;
+    }
+
+    return profile;
   } catch (error) {
-    if (error.code === "JFS_LOGIN_FAILED") {
+    if (
+      error.code === "JFS_LOGIN_FAILED" ||
+      error.code === "JFS_DEVICE_VERIFICATION_REJECTED" ||
+      error.code === "JFS_DEVICE_VERIFICATION_TIMEOUT"
+    ) {
       throw error;
     }
-    throw createLoginError();
+    const loginErr = createLoginError();
+    if (typeof error.status === "number") loginErr.status = error.status;
+    throw loginErr;
   }
 }
 
@@ -225,8 +343,12 @@ function createJfsAuthManager({
 
 module.exports = {
   JFS_LOGIN_URL,
+  JFS_DEVICE_QUERY_URL,
+  DEVICE_VERIFICATION_CODE,
   buildLoginHeaders,
   createJfsAuthManager,
+  extractLoginProfile,
   hashPassword,
-  performJfsLogin
+  performJfsLogin,
+  pollDeviceVerificationApproval
 };
