@@ -6,6 +6,7 @@ const { scrapeSensitiveDetail } = require("./sensitive.scraper");
 const { scrapeWaybillStatus } = require("./waybill-status.scraper");
 const { scrapeIbkReport } = require("./ibk-report.scraper");
 const { scrapeSenderDetail } = require("./sender-detail.scraper");
+const { scrapeWaybillTracking } = require("./waybill-tracking.scraper");
 
 module.exports = {
   scrapeAgingSign,
@@ -13,5 +14,6 @@ module.exports = {
   scrapeInventoryDetail,
   scrapeSenderDetail,
   scrapeSensitiveDetail,
+  scrapeWaybillTracking,
   scrapeWaybillStatus
 };
