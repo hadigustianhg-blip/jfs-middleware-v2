@@ -53,8 +53,6 @@ function buildLoginHeaders() {
     "Content-Type": "application/json;charset=UTF-8",
     Lang: "ID",
     Langtype: "ID",
-    Origin: "https://jfs.jtcargo.co.id",
-    Referer: "https://jfs.jtcargo.co.id/",
     Routename: "login",
     "User-Agent": "Mozilla/5.0"
   };
@@ -78,6 +76,9 @@ async function performJfsLogin({
 
   try {
     const headers = buildLoginHeaders();
+    const passwordHash = /^[a-f0-9]{32}$/i.test(password)
+      ? password.toLowerCase()
+      : hashPassword(password);
     logLoginMetadata("request", { account, password, deviceNo, headers });
     const response = await requestFn({
       method: "POST",
@@ -85,7 +86,7 @@ async function performJfsLogin({
       headers,
       body: {
         account: account.trim(),
-        password: hashPassword(password),
+        password: passwordHash,
         captchaToken: "",
         deviceNo,
         countryId: "1"

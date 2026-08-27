@@ -74,6 +74,12 @@ test("JFS auth manager hashes the original password once and caches token", asyn
   assert.equal(received.method, "POST");
   assert.equal(received.url, JFS_LOGIN_URL);
   assert.deepEqual(received.headers, buildLoginHeaders());
+  assert.deepEqual(Object.keys(received.headers).sort(), [
+    "Accept", "Content-Type", "Lang", "Langtype", "Routename", "User-Agent"
+  ].sort());
+  assert.equal(received.headers["User-Agent"], "Mozilla/5.0");
+  assert.equal("Origin" in received.headers, false);
+  assert.equal("Referer" in received.headers, false);
   assert.deepEqual(received.body, {
     account: "TEST_ACCOUNT",
     password: hashPassword("TEST_PASSWORD"),

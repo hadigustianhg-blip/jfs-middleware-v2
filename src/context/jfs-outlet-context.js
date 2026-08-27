@@ -36,6 +36,7 @@ function createJfsOutletContext({
   let lastLoginAt = initialToken ? new Date() : null;
   let lastFailure = null;
   let refreshPromise = null;
+  let credentialGeneration = 0;
   let scopedAccount = account;
   let scopedPassword = password;
   let lastNetworkCode = networkCode || null;
@@ -57,7 +58,8 @@ function createJfsOutletContext({
     async refreshLogin() {
       if (refreshPromise) return refreshPromise;
 
-      refreshPromise = (async () => {
+      const activeRefresh = (async () => {
+        const loginGeneration = credentialGeneration;
         if (!scopedAccount || !scopedPassword) {
           throw new Error(`JFS credentials not provided for outlet ${outletCode}`);
         }
@@ -73,6 +75,11 @@ function createJfsOutletContext({
               data: options.body
             })
           });
+          if (loginGeneration !== credentialGeneration) {
+            const staleError = new Error("JFS credentials changed during login");
+            staleError.code = "JFS_STALE_CREDENTIAL_LOGIN";
+            throw staleError;
+          }
           currentToken = profile.token;
           lastNetworkCode = profile.networkCode || lastNetworkCode;
           lastNetworkName = profile.name || lastNetworkName;
@@ -84,11 +91,12 @@ function createJfsOutletContext({
           throw err;
         }
       })();
+      refreshPromise = activeRefresh;
 
       try {
-        return await refreshPromise;
+        return await activeRefresh;
       } finally {
-        refreshPromise = null;
+        if (refreshPromise === activeRefresh) refreshPromise = null;
       }
     },
 
@@ -106,6 +114,8 @@ function createJfsOutletContext({
       scopedAccount = String(nextAccount).trim();
       scopedPassword = String(nextPassword);
       currentToken = null;
+      credentialGeneration += 1;
+      refreshPromise = null;
     },
 
     async reconnect() {

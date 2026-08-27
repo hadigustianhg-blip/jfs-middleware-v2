@@ -89,6 +89,37 @@ test("scoped reconnect delegates login contract to the shared auth engine", asyn
   assert.equal(loginRequest.options.headers["User-Agent"], "Mozilla/5.0");
 });
 
+test("new scoped credentials invalidate an in-flight login and win the reconnect", async () => {
+  let releaseOld;
+  const oldPending = new Promise(resolve => { releaseOld = resolve; });
+  const requests = [];
+  const context = createJfsOutletContext({
+    tenantId: "tenant-refresh",
+    outletId: "outlet-refresh",
+    outletCode: "SUM001A",
+    account: "OLD_ACCOUNT",
+    password: "OLD_PASSWORD",
+    fetcher: async (_url, options) => {
+      requests.push(options.data.account);
+      if (options.data.account === "OLD_ACCOUNT") {
+        await oldPending;
+        return { status: 200, data: { data: { token: "OLD_TOKEN" } } };
+      }
+      return { status: 200, data: { data: { token: "NEW_TOKEN", networkCode: "SUM001A" } } };
+    }
+  });
+
+  const staleLogin = context.authManager.getAuthToken();
+  context.authManager.setCredentials("NEW_ACCOUNT", "NEW_PASSWORD");
+  const reconnect = await context.authManager.reconnect();
+  releaseOld();
+  await assert.rejects(staleLogin, error => error.code === "JFS_STALE_CREDENTIAL_LOGIN");
+
+  assert.equal(reconnect.connected, true);
+  assert.deepEqual(requests, ["OLD_ACCOUNT", "NEW_ACCOUNT"]);
+  assert.equal(await context.authManager.getAuthToken(), "NEW_TOKEN");
+});
+
 test("JfsOutletContext contains no duplicate HTTP login implementation", () => {
   const source = fs.readFileSync(path.join(__dirname, "../src/context/jfs-outlet-context.js"), "utf8");
   assert.match(source, /performJfsLogin/);
