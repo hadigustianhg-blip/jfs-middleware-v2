@@ -18,7 +18,8 @@ const OPERATION_FIELDS = {
   WAYBILL_STATUS: ["networkCode", "waybillList", "billNoList", "waybills", "startDate", "endDate"],
   SENDER_DETAIL: ["networkCode", "waybillNo"],
   SENSITIVE_DETAIL: ["networkCode", "waybillNo"],
-  WAYBILL_TRACKING: ["waybillNo"]
+  WAYBILL_TRACKING: ["waybillNo"],
+  WAYBILL_DETAIL: ["waybillNo"]
 };
 
 function validateOperationOptions(operation, value) {
@@ -33,7 +34,7 @@ function validateOperationOptions(operation, value) {
       });
     }
   }
-  if (operation === "WAYBILL_TRACKING") {
+  if (operation === "WAYBILL_TRACKING" || operation === "WAYBILL_DETAIL") {
     const waybillNo = value.waybillNo;
     if (typeof waybillNo !== "string" || !/^[A-Za-z0-9]{1,100}$/.test(waybillNo.trim())) {
       throw Object.assign(new Error("waybillNo is invalid"), { code: "INVALID_WAYBILL_NO" });
@@ -100,7 +101,8 @@ function createInternalMultiOutletRouter({
     { path: "/sender-detail", op: "SENDER_DETAIL" },
     { path: "/jfs-sender-detail", op: "SENDER_DETAIL" },
     { path: "/sensitive-detail", op: "SENSITIVE_DETAIL" },
-    { path: "/waybill-tracking", op: "WAYBILL_TRACKING" }
+    { path: "/waybill-tracking", op: "WAYBILL_TRACKING" },
+    { path: "/waybill-detail", op: "WAYBILL_DETAIL" }
   ];
 
   router.post("/scoped/reconnect", authMiddleware, async (req, res) => {
@@ -127,7 +129,7 @@ function createInternalMultiOutletRouter({
   for (const { path: routePath, op } of operations) {
     const fullPath = routePath;
     router.post(fullPath, authMiddleware, async (req, res) => {
-      if (op === "OMS_SCHEDULING_DETAIL" || op === "SENDER_DETAIL" || op === "SENSITIVE_DETAIL" || op === "WAYBILL_TRACKING") {
+      if (op === "OMS_SCHEDULING_DETAIL" || op === "SENDER_DETAIL" || op === "SENSITIVE_DETAIL" || op === "WAYBILL_TRACKING" || op === "WAYBILL_DETAIL") {
         res.set("Cache-Control", "private, no-store, max-age=0");
       }
       try {
@@ -140,7 +142,7 @@ function createInternalMultiOutletRouter({
         });
       } catch (err) {
         const invalidRuntimeOptions = err.code === "FORBIDDEN_RUNTIME_OPTION" || err.code === "INVALID_RUNTIME_OPTIONS" || err.code === "INVALID_WAYBILL_NO";
-        const notFound = err.code === "WAYBILL_TRACKING_NOT_FOUND";
+        const notFound = err.code === "WAYBILL_TRACKING_NOT_FOUND" || err.code === "WAYBILL_DETAIL_NOT_FOUND";
         return res.status(invalidRuntimeOptions ? 400 : notFound ? 404 : 500).json({
           success: false,
           error: invalidRuntimeOptions || notFound ? err.code : "SCRAPER_EXECUTION_FAILED",

@@ -10,6 +10,7 @@ const { scrapeSenderDetail } = require("../scrapers/sender-detail.scraper");
 const { scrapeOrderList } = require("../scrapers/order-scheduling.scraper");
 const { scrapeSensitiveDetail } = require("../scrapers/sensitive.scraper");
 const { scrapeWaybillTracking } = require("../scrapers/waybill-tracking.scraper");
+const { scrapeWaybillDetail } = require("../scrapers/waybill-detail.scraper");
 const { assertJfsApplicationAuthorized } = require("../utils/request");
 const { mapRepaymentType } = require("../mappers/cod.mapper");
 const {
@@ -383,6 +384,13 @@ async function executeMultiOutletScraper(context, operation, options = {}, depen
 
     case "WAYBILL_TRACKING":
       return executeWithScopedAuth(context, scopedToken => scrapeWaybillTracking({
+        waybillNo: options.waybillNo,
+        authToken: scopedToken,
+        requestFn: scopedRequestFn(context, dependencies.requestFn)
+      }));
+
+    case "WAYBILL_DETAIL":
+      return executeWithScopedAuth(context, scopedToken => scrapeWaybillDetail({
         waybillNo: options.waybillNo,
         authToken: scopedToken,
         requestFn: scopedRequestFn(context, dependencies.requestFn)
