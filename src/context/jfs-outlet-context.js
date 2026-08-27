@@ -2,6 +2,35 @@
 
 const axios = require("axios");
 
+class JfsAuthError extends Error {
+  constructor(message = "JFS_LOGIN_FAILED: Scoped JFS login failed", metadata = {}) {
+    super(message);
+    this.name = "JfsAuthError";
+    this.code = metadata.code || "JFS_LOGIN_FAILED";
+    this.stage = "SCOPED_AUTH";
+    if (typeof metadata.status === "number") {
+      this.status = metadata.status;
+    }
+  }
+}
+
+function extractTokenFromResponse(res) {
+  if (!res || !res.data) return null;
+  const payload = res.data;
+  if (typeof payload === "object") {
+    if (typeof payload.data?.token === "string" && payload.data.token.trim().length > 0) {
+      return payload.data.token.trim();
+    }
+    if (typeof payload.token === "string" && payload.token.trim().length > 0) {
+      return payload.token.trim();
+    }
+    if (typeof payload.data === "string" && payload.data.trim().length > 0) {
+      return payload.data.trim();
+    }
+  }
+  return null;
+}
+
 function createJfsOutletContext({
   tenantId,
   outletId,
@@ -24,6 +53,7 @@ function createJfsOutletContext({
   let lastLoginAt = initialToken ? new Date() : null;
   let lastFailure = null;
   let refreshPromise = null;
+  const deviceNo = process.env.JFS_DEVICE_NO || require("node:crypto").randomUUID();
 
   const resolvedFetcher = fetcher || (async (url, options) => {
     const response = await axios({ url, ...options });
@@ -41,7 +71,10 @@ function createJfsOutletContext({
 
       refreshPromise = (async () => {
         if (!account || !password) {
-          throw new Error(`JFS credentials not provided for outlet ${outletCode}`);
+          throw new JfsAuthError("JFS_LOGIN_FAILED: JFS credentials not provided for outlet", {
+            code: "JFS_LOGIN_FAILED",
+            status: 401
+          });
         }
 
         try {
@@ -63,17 +96,20 @@ function createJfsOutletContext({
               account,
               password: passwordHash,
               captchaToken: "",
-              deviceNo: require("node:crypto").randomUUID(),
+              deviceNo,
               countryId: "1"
             }
           });
 
-          const token = res.data?.data?.token;
-          const validToken = typeof token === "string" && token.trim().length > 0;
-          if (res.status !== 200 || !validToken) {
-            const errMessage = res.data?.msg || `JFS login failed with status ${res.status}`;
-            lastFailure = { occurredAt: new Date(), message: errMessage };
-            throw new Error(`JFS_LOGIN_FAILED: ${errMessage}`);
+          const token = extractTokenFromResponse(res);
+          const appCode = res.data?.code;
+          const validAppCode = appCode === undefined || appCode === null || appCode === 0 || appCode === 1;
+
+          if (res.status !== 200 || !validAppCode || !token) {
+            const status = typeof res.status === "number" ? res.status : 401;
+            const safeMsg = "JFS_LOGIN_FAILED: Scoped JFS login failed";
+            lastFailure = { occurredAt: new Date(), message: safeMsg };
+            throw new JfsAuthError(safeMsg, { code: "JFS_LOGIN_FAILED", status });
           }
 
           currentToken = token;
@@ -81,8 +117,13 @@ function createJfsOutletContext({
           lastFailure = null;
           return currentToken;
         } catch (err) {
-          lastFailure = { occurredAt: new Date(), message: err.message };
-          throw err;
+          const status = typeof err.status === "number" ? err.status : (err.response?.status || 500);
+          const safeError = err instanceof JfsAuthError
+            ? err
+            : new JfsAuthError("JFS_LOGIN_FAILED: Scoped JFS login failed", { code: "JFS_LOGIN_FAILED", status });
+
+          lastFailure = { occurredAt: new Date(), message: safeError.message };
+          throw safeError;
         }
       })();
 
@@ -178,5 +219,7 @@ function createJfsOutletContext({
 }
 
 module.exports = {
-  createJfsOutletContext
+  JfsAuthError,
+  createJfsOutletContext,
+  extractTokenFromResponse
 };

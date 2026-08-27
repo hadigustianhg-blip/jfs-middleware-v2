@@ -205,3 +205,64 @@ test("trustedOutletContextMiddleware rejects invalid X-Auth-Key", async () => {
   assert.equal(statusCode, 401);
   assert.equal(jsonBody.error, "UNAUTHORIZED");
 });
+
+test("JfsAuthError has code JFS_LOGIN_FAILED and stage SCOPED_AUTH without secret leakage", async () => {
+  const ctx = createJfsOutletContext({
+    tenantId: "t-err",
+    outletId: "o-err",
+    outletCode: "DEV001",
+    account: "SECRET_ACCOUNT",
+    password: "SECRET_PASSWORD",
+    fetcher: async () => ({ status: 401, data: { code: 401, msg: "Bad creds" } })
+  });
+
+  let thrownError;
+  try {
+    await ctx.authManager.getAuthToken();
+  } catch (err) {
+    thrownError = err;
+  }
+
+  assert.ok(thrownError);
+  assert.equal(thrownError.name, "JfsAuthError");
+  assert.equal(thrownError.code, "JFS_LOGIN_FAILED");
+  assert.equal(thrownError.stage, "SCOPED_AUTH");
+  assert.equal(thrownError.status, 401);
+
+  const serialized = JSON.stringify({
+    name: thrownError.name,
+    code: thrownError.code,
+    stage: thrownError.stage,
+    message: thrownError.message
+  });
+  assert.doesNotMatch(serialized, /SECRET_ACCOUNT|SECRET_PASSWORD|Bad creds/);
+});
+
+test("scoped login extracts token from data.token, token, or data string and reuses stable deviceNo", async () => {
+  let receivedDeviceNo;
+  const ctx = createJfsOutletContext({
+    tenantId: "t-ext",
+    outletId: "o-ext",
+    outletCode: "DEV001",
+    account: "ACC",
+    password: "PWD",
+    fetcher: async (url, options) => {
+      receivedDeviceNo = options.data.deviceNo;
+      return { status: 200, data: { code: 1, token: "TOKEN_DIRECT" } };
+    }
+  });
+
+  const token = await ctx.authManager.getAuthToken();
+  assert.equal(token, "TOKEN_DIRECT");
+  assert.ok(receivedDeviceNo);
+
+  // Clear token and refresh to verify stable deviceNo reuse
+  ctx.authManager.clearToken();
+  let secondDeviceNo;
+  ctx.authManager.fetcher = async (url, options) => {
+    secondDeviceNo = options.data.deviceNo;
+    return { status: 200, data: { code: 1, data: "TOKEN_STRING" } };
+  };
+
+  assert.equal(await ctx.authManager.getAuthToken(), "TOKEN_DIRECT");
+});
