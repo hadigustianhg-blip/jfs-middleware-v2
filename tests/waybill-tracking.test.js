@@ -89,6 +89,12 @@ test("tracking maps one waybill to the exact JFS endpoint and server-controlled 
     countryId: "1"
   });
   assert.equal(received.headers.Authtoken, "OUTLET_TOKEN");
+  assert.equal(received.headers.Routename, "trackingExpress");
+  assert.equal(received.headers.Lang, "ID");
+  assert.equal(received.headers.Langtype, "ID");
+  assert.equal(received.headers.Origin, "https://jfs.jtcargo.co.id");
+  assert.equal(received.headers.Referer, "https://jfs.jtcargo.co.id/");
+  assert.equal(received.headers.Cookie, undefined);
   assert.deepEqual(buildWaybillTrackingPayload(WAYBILL_NO), received.body);
   assert.equal(result.waybillNo, WAYBILL_NO);
 });

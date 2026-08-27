@@ -38,7 +38,7 @@ function buildWaybillTrackingHeaders(authToken) {
     Langtype: "ID",
     Origin: "https://jfs.jtcargo.co.id",
     Referer: "https://jfs.jtcargo.co.id/",
-    Routename: "waybillTracking",
+    Routename: "trackingExpress",
     "User-Agent": "Mozilla/5.0"
   };
 }
