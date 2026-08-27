@@ -41,7 +41,8 @@ function createJfsOutletContext({
   let scopedPassword = password;
   let lastNetworkCode = networkCode || null;
   let lastNetworkName = null;
-  const deviceNo = stableDeviceNo(tenantId, outletId);
+  const configuredDeviceNo = process.env.JFS_DEVICE_NO?.trim();
+  const deviceNo = configuredDeviceNo || stableDeviceNo(tenantId, outletId);
   const axiosClient = axios.create();
 
   const resolvedFetcher = fetcher || (async (url, options) => {

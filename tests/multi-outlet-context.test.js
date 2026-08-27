@@ -33,6 +33,24 @@ test("stable device identity is deterministic per scope and distinct across outl
   assert.equal(first.deviceNo, recreated.deviceNo);
 });
 
+test("scoped context honors the configured production device identity", () => {
+  const previous = process.env.JFS_DEVICE_NO;
+  process.env.JFS_DEVICE_NO = "CONFIGURED_STABLE_DEVICE";
+  try {
+    const context = createJfsOutletContext({
+      tenantId: "tenant-configured-device",
+      outletId: "outlet-configured-device",
+      outletCode: "SUM001A",
+      account: "ACCOUNT",
+      password: "PASSWORD"
+    });
+    assert.equal(context.deviceNo, "CONFIGURED_STABLE_DEVICE");
+  } finally {
+    if (previous === undefined) delete process.env.JFS_DEVICE_NO;
+    else process.env.JFS_DEVICE_NO = previous;
+  }
+});
+
 test("scoped context owns an axios client with no global response interceptors", () => {
   const context = createJfsOutletContext({ tenantId: "tenant-a", outletId: "outlet-a", outletCode: "A" });
   assert.notEqual(context.axiosClient, axios);
