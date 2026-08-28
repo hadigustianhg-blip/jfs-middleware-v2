@@ -1,8 +1,21 @@
+require("dotenv").config();
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
 const FormData = require("form-data");
 const moment = require("moment-timezone");
+const { createModularRoutes } = require("./src/routes");
+const {
+  createJfsAuthManager
+} = require("./src/auth/jfs-auth-manager");
+const {
+  installAxiosAuthRetry
+} = require("./src/auth/axios-auth-retry");
+const { externalRequest } = require("./src/utils/request");
+const {
+  processOrderDetailBatch
+} = require("./src/services/order-sync-detail.service");
+const { mapRepaymentType } = require("./src/mappers/cod.mapper");
 
 const app = express();
 
@@ -10,7 +23,23 @@ app.use(cors());
 app.use(express.json());
 
 // 🔐 TOKEN
-let AUTH_TOKEN = process.env.AUTH_TOKEN || "";
+let AUTH_TOKEN = process.env.AUTH_TOKEN || process.env.JFS_AUTH_TOKEN || "";
+const authManager = createJfsAuthManager({
+  initialToken: AUTH_TOKEN,
+  onToken: token => {
+    AUTH_TOKEN = token;
+  }
+});
+installAxiosAuthRetry(axios, authManager);
+
+const { createInternalMultiOutletRouter } = require("./src/routes/internal-multi-outlet.routes");
+
+app.use(createModularRoutes({
+  getAuthToken: () => AUTH_TOKEN,
+  authManager
+}));
+
+app.use(createInternalMultiOutletRouter());
 
 // ================= ROOT =================
 app.get("/", (req, res) => {
@@ -24,6 +53,7 @@ app.get("/set-token", (req, res) => {
   }
 
   AUTH_TOKEN = req.query.token;
+  authManager.setToken(AUTH_TOKEN);
 
   res.json({
     message: "Token berhasil diupdate",
@@ -305,129 +335,6 @@ app.get("/jfs-dispatch", async (req, res) => {
   }
 });
 
-// ================= AGING SIGN =================
-app.get("/jfs-aging-sign", async (req, res) => {
-
-  try {
-
-    if (!AUTH_TOKEN) {
-      return res.status(400).json({
-        error: "Token kosong"
-      });
-    }
-
-    const date =
-      req.query.date ||
-      moment().tz("Asia/Jakarta").format("YYYY-MM-DD");
-
-    const payload = {
-
-      timeType: "sign",
-
-      beginDate: date,
-      endDate: date,
-
-      netType: "2",
-
-      businessModelId: "0",
-
-      paginationSearchType: "list",
-
-      current: 1,
-      size: 20,
-
-      countryId: "1",
-
-      dispatchCode: "",
-
-      isReceivePay: "",
-
-      isRefund: "",
-
-      sqlCode: "realtime_bus_aging_sign_sum_nd"
-    };
-
-    const response = await axios.post(
-
-      "https://jfsgw.jtcargo.co.id/jfs-report-leader/report/dynamicReport/findByPagination?sqlCode=realtime_bus_aging_sign_sum_nd&dcr_key=57b048fb-bc8c-4d24-982b-a750b7ce8693",
-
-      payload,
-
-      {
-        headers: {
-
-          "Accept": "application/json, text/plain, */*",
-
-          "Content-Type": "application/json;charset=UTF-8",
-
-          "Authtoken": AUTH_TOKEN,
-
-          "Lang": "ID",
-          "Langtype": "ID",
-
-          "Origin": "https://jfs.jtcargo.co.id",
-
-          "Referer": "https://jfs.jtcargo.co.id/",
-
-          "Routename": "Bd-theme-42cb1bb7-3560-47e0-923a-f87ea5f7b1fe",
-
-          "User-Agent":
-            "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36"
-        }
-      }
-    );
-
-    const records =
-      response?.data?.data?.records || [];
-
-    const clean = records.map(item => ({
-
-      signTimelyTotal: item.signTimelyTotal || 0,
-
-      networkName: item.networkName || "",
-
-      signDelayOtherTotal: item.signDelayOtherTotal || 0,
-
-      signTimelyRate: item.signTimelyRate || "0%",
-
-      problemOtherTotal: item.problemOtherTotal || 0,
-
-      queryTime: item.queryTime || "",
-
-      sendCenterTotal: item.sendCenterTotal || 0,
-
-      signDelayNoSignTotal: item.signDelayNoSignTotal || 0
-
-    }));
-
-    res.json({
-
-      success: true,
-
-      total: clean.length,
-
-      data: clean
-
-    });
-
-  } catch (error) {
-
-    console.error(
-      "ERROR AGING SIGN:",
-      error.response?.data || error.message
-    );
-
-    res.status(500).json({
-
-      error: "Gagal ambil aging sign",
-
-      detail:
-        error.response?.data ||
-        error.message
-    });
-  }
-});
-
 // ================= JFS COD =================
 app.get("/jfs-cod", async (req, res) => {
   try {
@@ -561,7 +468,7 @@ app.get("/jfs-cod", async (req, res) => {
 
       repaymentStatus: item.repaymentStatus || 0,
 
-      repaymentType: item.repaymentType || 0,
+      ...mapRepaymentType(item),
 
       signTime: item.signTime || "",
 
@@ -596,8 +503,8 @@ app.get("/jfs-cod", async (req, res) => {
   }
 });
 
-// ================= IBK REPORT =================
-app.get("/jfs-ibk-report", async (req, res) => {
+// ================= IBK REPORT (LEGACY REFERENCE) =================
+async function legacyIbkReport(req, res) {
 
   try {
 
@@ -818,159 +725,7 @@ app.get("/jfs-ibk-report", async (req, res) => {
 
   }
 
-});
-// ================= SECRET INFO =================
-app.get("/jfs-sensitive", async (req, res) => {
-
-  try {
-
-    if (!AUTH_TOKEN) {
-
-      return res.status(400).json({
-        error: "Token kosong"
-      });
-
-    }
-
-    const waybillNo =
-      req.query.waybillNo;
-
-    console.log(
-      "SENSITIVE REQUEST:",
-      waybillNo
-    );
-
-    const response =
-      await axios({
-
-        method: "POST",
-
-        url:
-          "https://jfsgw.jtcargo.co.id/networkmanagement/dispatchWaybill/sensitiveDetailByWaybillNo",
-
-        params: {
-
-          waybillNo:
-            waybillNo,
-
-          chanel: 2
-
-        },
-
-        headers: {
-
-          "Accept":
-            "application/json, text/plain, */*",
-
-          "Content-Type":
-            "application/json;charset=UTF-8",
-
-          "Authtoken":
-            AUTH_TOKEN,
-
-          "Lang":
-            "ID",
-
-          "Langtype":
-            "ID",
-
-          "Origin":
-            "https://jfs.jtcargo.co.id",
-
-          "Referer":
-            "https://jfs.jtcargo.co.id/",
-
-          "Routename":
-            "dispatchWaybill",
-
-          "User-Agent":
-            "Mozilla/5.0"
-
-        },
-
-        data: {
-
-          countryId: "1"
-
-        }
-
-      });
-
-    console.log(
-      "SENSITIVE SUCCESS"
-    );
-
-    const d =
-      response.data.data || {};
-
-    res.json({
-
-      success: true,
-
-      data: {
-
-        waybillNo:
-          d.waybillNo || "",
-
-        dispatchTime:
-          d.dispatchTime || "",
-
-        dispatchStaffName:
-          d.dispatchStaffName || "",
-
-        receiverName:
-          d.receiverName || "",
-
-        receiverMobilePhone:
-          d.receiverMobilePhone || "",
-
-        receiverTelphone:
-          d.receiverTelphone || "",
-
-        receiverDetailedAddress:
-          d.receiverDetailedAddress || "",
-
-        chargeWeight:
-          d.chargeWeight || 0,
-
-        abnormalName:
-          d.abnormalName || "",
-
-        updateTime:
-          d.updateTime || "",
-
-        codMoney:
-          d.codMoney || 0,
-
-        goodsName:
-          d.goodsName || ""
-
-      }
-
-    });
-
-  } catch (err) {
-
-    console.log(
-      "SENSITIVE ERROR:",
-      err.response?.data ||
-      err.message
-    );
-
-    res.status(500).json({
-
-      success: false,
-
-      error:
-        err.response?.data ||
-        err.message
-
-    });
-
-  }
-
-});
-
+}
 function getOmsHeaders(route) {
   return {
     Authtoken: AUTH_TOKEN,
@@ -1105,128 +860,25 @@ form.append(
       allOrders.length
     );
 
-    const result = [];
+    const result = await processOrderDetailBatch(allOrders, {
+      fetchDetail: async item => {
+        const response = await externalRequest({
+          url: "https://jfsgw.jtcargo.co.id/customerplatform/omsOrder/detailDispatchByLog",
+          method: "GET",
+          params: { id: item.id },
+          headers: getOmsHeaders("orderScheduling"),
+          timeoutMs: 15000,
+          retries: 1,
+          retryDelayMs: 250
+        });
 
-    for (const item of allOrders) {
-
-      try {
-
-        console.log(
-          "DETAIL REQUEST:",
-          item.id
-        );
-
-        const detail =
-          await axios.get(
-            "https://jfsgw.jtcargo.co.id/customerplatform/omsOrder/detailDispatchByLog",
-            {
-              params: {
-                id: item.id
-              },
-              headers: {
-                ...getOmsHeaders(
-                  "orderScheduling"
-                )
-              }
-            }
-          );
-
-        const d =
-          detail?.data?.data || {};
-
-        console.log(
-          "DETAIL SUCCESS:",
-          item.id
-        );
-
-       result.push({
-
-  id: d.id || "",
-
-  orderSourceName: d.orderSourceName || "",
-  orderSourceCode: d.orderSourceCode || "",
-
-  waybillId: d.waybillId || "",
-
-  customerName: d.customerName || "",
-  customerCode: d.customerCode || "",
-
-  status: d.orderStatusName || "",
-  statusCode: d.orderStatusCode || "",
-
-  senderName: d.senderName || "",
-  senderCompany: d.senderCompany || "",
-  senderPhone: d.senderMobilePhone || "",
-  senderProvince: d.senderProvinceName || "",
-  senderCity: d.senderCityName || "",
-  senderArea: d.senderAreaName || "",
-  senderAddress: d.senderDetailedAddress || "",
-
-  receiverName: d.receiverName || "",
-  receiverPhone: d.receiverMobilePhone || "",
-  receiverProvince: d.receiverProvinceName || "",
-  receiverCity: d.receiverCityName || "",
-  receiverArea: d.receiverAreaName || "",
-  receiverAddress: d.receiverDetailedAddress || "",
-
-  goodsName: d.goodsName || "",
-  goodsType: d.goodsTypeName || "",
-
-  weight: d.packageTotalWeight || 0,
-  packageNumber: d.packageNumber || 0,
-
-  expressType: d.expressTypeName || "",
-  expressTypeCode: d.expressTypeCode || "",
-
-  paymentMode: d.paymentModeName || "",
-
-  sendName: d.sendName || "",
-  sendCode: d.sendCode || "",
-
-  pickNetwork: d.pickNetworkName || "",
-  pickNetworkCode: d.pickNetworkCode || "",
-
-  proxyArea: d.proxyAreaName || "",
-  proxyAreaCode: d.proxyAreaCode || "",
-
-  customerOrderTime: d.customerOrderTime || "",
-  dispatchNetworkTime: d.dispatchNetworkTime || "",
-  inputTime: d.inputTime || "",
-
-  syncTime: moment()
-    .tz("Asia/Jakarta")
-    .format("YYYY-MM-DD HH:mm:ss")
-
-});
-
-      } catch (err) {
-
-        console.log(
-          "DETAIL ERROR:",
-          item.id
-        );
-
-        console.log(
-          "STATUS:",
-          err.response?.status
-        );
-
-        console.log(
-          "DATA:",
-          JSON.stringify(
-            err.response?.data,
-            null,
-            2
-          )
-        );
-
-      }
-
-      await new Promise(r =>
-        setTimeout(r, 1500)
-      );
-
-    }
+        return response?.data?.data || {};
+      },
+      getSyncTime: () =>
+        moment()
+          .tz("Asia/Jakarta")
+          .format("YYYY-MM-DD HH:mm:ss")
+    });
 
     res.json({
 
@@ -1469,6 +1121,20 @@ app.get("/jfs-inventory", async (req, res) => {
 // ================= PORT =================
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log("Server running on port " + PORT);
-});
+function startServer({
+  port = PORT,
+  host = "0.0.0.0"
+} = {}) {
+  return app.listen(port, host, () => {
+    console.log("Server running on port " + port);
+  });
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = {
+  app,
+  startServer
+};
